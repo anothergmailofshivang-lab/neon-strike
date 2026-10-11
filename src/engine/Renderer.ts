@@ -74,6 +74,22 @@ export class Renderer {
     }
   }
 
+  public renderPreview(scene: THREE.Scene, camera: THREE.PerspectiveCamera, bounds: DOMRect): void {
+    if (this.disposed) return;
+    const canvas = this.canvas.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+    const pixelRatio = this.getPixelRatio();
+    const left = bounds.left - canvas.left;
+    const bottom = canvas.bottom - bounds.bottom;
+    this.renderer.setViewport(left * pixelRatio, bottom * pixelRatio, bounds.width * pixelRatio, bounds.height * pixelRatio);
+    this.renderer.setScissor(left * pixelRatio, bottom * pixelRatio, bounds.width * pixelRatio, bounds.height * pixelRatio);
+    this.renderer.setScissorTest(true);
+    this.renderer.clear(true, true, true);
+    this.renderer.render(scene, camera);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, this.width, this.height);
+  }
+
   public getStats(): RendererStats {
     const info = this.renderer.info;
     return {

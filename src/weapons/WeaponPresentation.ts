@@ -1,6 +1,10 @@
 import * as THREE from 'three';
-import { createWeaponModel, type WeaponModel } from './WeaponModelFactory';
+import { createWeaponModel, disposeWeaponModel, type WeaponModel } from './WeaponModelFactory';
 import type { WeaponDefinition } from './WeaponTypes';
+import type { WeaponSkinDefinition } from '../cosmetics/WeaponSkinDefinitions';
+import { applyWeaponSkin } from '../cosmetics/WeaponSkinApplicator';
+import { CharacterVisualAdapter } from '../characters/CharacterVisualAdapter';
+import type { CharacterAppearance, CharacterDefinition } from '../characters/CharacterTypes';
 
 export class WeaponPresentation {
   public readonly root = new THREE.Group();
@@ -9,6 +13,7 @@ export class WeaponPresentation {
   private activeModel: WeaponModel | null = null;
   private recoilOffset = 0;
   private firingFlashRemaining = 0;
+  private readonly arms: CharacterVisualAdapter;
 
   public constructor(camera: THREE.PerspectiveCamera, definitions: readonly WeaponDefinition[]) {
     this.camera = camera;
@@ -16,6 +21,8 @@ export class WeaponPresentation {
     this.root.position.set(0.28, -0.25, -0.55);
     this.root.rotation.set(-0.06, -0.08, 0);
     this.camera.add(this.root);
+    this.arms = new CharacterVisualAdapter(this.root);
+    this.arms.setVisible(false);
     for (const definition of definitions) {
       const model = createWeaponModel(definition);
       model.group.visible = false;
@@ -33,6 +40,25 @@ export class WeaponPresentation {
       this.activeModel.group.visible = true;
     }
     this.recoilOffset = 0;
+  }
+
+  public applySkin(weaponId: string, definition: WeaponDefinition, skin: WeaponSkinDefinition): void {
+    const model = this.models.get(weaponId);
+    if (model) applyWeaponSkin(model, definition, skin);
+  }
+
+  public applyCharacter(definition: CharacterDefinition, appearance: CharacterAppearance): void {
+    this.arms.apply(definition, appearance);
+  }
+
+  public setCharacterVisible(visible: boolean): void {
+    this.arms.setVisible(visible);
+  }
+
+  public reset(): void {
+    this.recoilOffset = 0;
+    this.firingFlashRemaining = 0;
+    for (const model of this.models.values()) model.flash.visible = false;
   }
 
   public fire(definition: WeaponDefinition): void {
@@ -73,18 +99,8 @@ export class WeaponPresentation {
 
   public dispose(): void {
     this.camera.remove(this.root);
-    this.root.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      if (mesh.geometry) {
-        mesh.geometry.dispose();
-      }
-      const material = mesh.material;
-      if (Array.isArray(material)) {
-        material.forEach((entry) => entry.dispose());
-      } else if (material) {
-        material.dispose();
-      }
-    });
+    this.arms.dispose();
+    for (const model of this.models.values()) disposeWeaponModel(model);
     this.root.clear();
     this.models.clear();
   }

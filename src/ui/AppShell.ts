@@ -2,6 +2,10 @@ import { ApplicationState } from '../app/GameState';
 import type { PlayerSettings } from '../player/PlayerConfig';
 import type { WeaponHudState } from '../weapons/WeaponTypes';
 import type { MapDefinition } from '../world/MapDefinition';
+import type { CharacterAppearance, CharacterDefinition } from '../characters/CharacterTypes';
+import type { PlayerLoadout } from '../loadouts/LoadoutTypes';
+import type { WeaponDefinition } from '../weapons/WeaponTypes';
+import type { WeaponSkinDefinition } from '../cosmetics/WeaponSkinDefinitions';
 
 export interface AppShellCallbacks {
   onStartPractice: () => void;
@@ -14,6 +18,19 @@ export interface AppShellCallbacks {
   onFieldOfViewChange: (value: number) => void;
   onHeadBobChange: (enabled: boolean) => void;
   onSelectMap: (mapId: string) => void;
+  onOpenCustomization: () => void;
+  onCloseCustomization: () => void;
+  onSelectCharacter: (characterId: string) => void;
+  onSelectPalette: (paletteId: string) => void;
+  onSelectOutfit: (outfitId: string) => void;
+  onSelectHeadVariant: (headId: string) => void;
+  onSelectPrimary: (weaponId: string) => void;
+  onSelectSecondary: (weaponId: string) => void;
+  onSelectPrimarySkin: (skinId: string) => void;
+  onSelectSecondarySkin: (skinId: string) => void;
+  onPreviewWeapon: (weaponId: string, skinId: string) => void;
+  onResetAppearance: () => void;
+  onSaveCustomization: () => void;
   showDiagnosticsControl: boolean;
 }
 
@@ -27,6 +44,19 @@ export class AppShell {
   private startupButton!: HTMLButtonElement;
   private readonly mapButtons = new Map<string, HTMLButtonElement>();
   private selectedMapName = 'Map';
+  private customizationOverlay!: HTMLElement;
+  private customizationVisible = false;
+  private customizationStatus!: HTMLElement;
+  private characterDetails!: HTMLElement;
+  private previewMount!: HTMLElement;
+  private primarySelect!: HTMLSelectElement;
+  private secondarySelect!: HTMLSelectElement;
+  private primarySkinSelect!: HTMLSelectElement;
+  private secondarySkinSelect!: HTMLSelectElement;
+  private paletteList!: HTMLElement;
+  private outfitList!: HTMLElement;
+  private headList!: HTMLElement;
+  private readonly characterButtons = new Map<string, HTMLButtonElement>();
   private errorMessage!: HTMLElement;
   private stateLabel!: HTMLElement;
   private pauseStatus!: HTMLElement;
@@ -45,7 +75,14 @@ export class AppShell {
   private combatMessageTimer: number | null = null;
   private readonly callbacks: AppShellCallbacks;
 
-  public constructor(root: HTMLElement, callbacks: AppShellCallbacks, maps: readonly MapDefinition[]) {
+  public constructor(
+    root: HTMLElement,
+    callbacks: AppShellCallbacks,
+    maps: readonly MapDefinition[],
+    characters: readonly CharacterDefinition[],
+    weapons: readonly WeaponDefinition[],
+    skins: readonly WeaponSkinDefinition[],
+  ) {
     this.callbacks = callbacks;
     root.replaceChildren();
     root.className = 'game-shell';
@@ -60,13 +97,14 @@ export class AppShell {
     root.appendChild(uiLayer);
 
     this.startupOverlay = this.createStartupOverlay(uiLayer, maps);
+    this.customizationOverlay = this.createCustomizationOverlay(uiLayer, characters, weapons, skins);
     this.pauseOverlay = this.createPauseOverlay(uiLayer);
     this.errorOverlay = this.createErrorOverlay(uiLayer);
     this.hud = this.createHud(uiLayer);
   }
 
   public setState(state: ApplicationState): void {
-    this.startupOverlay.hidden = !(
+    this.startupOverlay.hidden = this.customizationVisible || !(
       state === ApplicationState.INITIALIZING
       || state === ApplicationState.MAIN_MENU
       || state === ApplicationState.LOADING_MATCH
@@ -74,6 +112,7 @@ export class AppShell {
     this.pauseOverlay.hidden = state !== ApplicationState.PAUSED;
     this.errorOverlay.hidden = state !== ApplicationState.ERROR;
     this.hud.hidden = state !== ApplicationState.PLAYING;
+    this.customizationOverlay.hidden = !this.customizationVisible || state !== ApplicationState.MAIN_MENU;
     this.stateLabel.textContent = state;
 
     if (state === ApplicationState.INITIALIZING) {
@@ -116,6 +155,43 @@ export class AppShell {
   public setMapLoadStatus(message: string, canRetry = false): void {
     this.startupStatus.textContent = message;
     this.startupButton.disabled = !canRetry;
+  }
+
+  public setCustomizationVisible(visible: boolean): void {
+    this.customizationVisible = visible;
+    this.startupOverlay.hidden = visible;
+    this.customizationOverlay.hidden = !visible;
+  }
+
+  public get customizationPreviewMount(): HTMLElement {
+    return this.previewMount;
+  }
+
+  public setCustomizationState(
+    character: CharacterDefinition,
+    appearance: CharacterAppearance,
+    loadout: PlayerLoadout,
+  ): void {
+    for (const [id, button] of this.characterButtons) button.classList.toggle('character-card-selected', id === character.id);
+    this.characterDetails.innerHTML = '';
+    const title = document.createElement('strong');
+    title.textContent = `${character.displayName} · ${character.category.toUpperCase()}`;
+    const description = document.createElement('p');
+    description.textContent = character.description;
+    const theme = document.createElement('small');
+    theme.textContent = character.visualTheme;
+    this.characterDetails.append(title, description, theme);
+    this.updateChoiceButtons(this.paletteList, character.palettes.map((entry) => [entry.id, entry.displayName]), appearance.paletteId, (id) => this.callbacks.onSelectPalette(id));
+    this.updateChoiceButtons(this.outfitList, character.outfitVariantIds.map((id) => [id, id.replaceAll('-', ' ')]), appearance.outfitVariantId, (id) => this.callbacks.onSelectOutfit(id));
+    this.updateChoiceButtons(this.headList, character.headVariantIds.map((id) => [id, id.replaceAll('-', ' ')]), appearance.headVariantId, (id) => this.callbacks.onSelectHeadVariant(id));
+    this.primarySelect.value = loadout.primaryWeaponId;
+    this.secondarySelect.value = loadout.secondaryWeaponId;
+    this.primarySkinSelect.value = loadout.primarySkinId;
+    this.secondarySkinSelect.value = loadout.secondarySkinId;
+  }
+
+  public setCustomizationStatus(message: string): void {
+    this.customizationStatus.textContent = message;
   }
 
   public setResumeStatus(message: string): void {
@@ -185,7 +261,7 @@ export class AppShell {
     const content = this.createPanel(overlay);
     const eyebrow = document.createElement('p');
     eyebrow.className = 'eyebrow';
-    eyebrow.textContent = 'PHASE 03 / NPC COMBAT ENCOUNTER';
+    eyebrow.textContent = 'PHASE 05 / OPERATIVE CUSTOMIZATION';
     content.appendChild(eyebrow);
 
     const title = document.createElement('h1');
@@ -194,7 +270,7 @@ export class AppShell {
 
     const description = document.createElement('p');
     description.className = 'lead';
-    description.textContent = 'A tactical single-player encounter built on the NEON STRIKE first-person controller.';
+    description.textContent = 'Choose an operative, tune its appearance, configure a loadout, and enter the arena.';
     content.appendChild(description);
 
     const mapHeading = document.createElement('p');
@@ -237,7 +313,167 @@ export class AppShell {
     controls.className = 'control-note';
     controls.textContent = 'WASD move · Shift sprint · Space jump · LMB fire · RMB aim · R reload · 1/2 select · Q or wheel cycle · Escape pauses.';
     content.appendChild(controls);
+    const customizeButton = document.createElement('button');
+    customizeButton.className = 'secondary-button customization-open-button';
+    customizeButton.type = 'button';
+    customizeButton.textContent = 'Configure Character & Loadout';
+    customizeButton.addEventListener('click', () => {
+      this.setCustomizationVisible(true);
+      this.callbacks.onOpenCustomization();
+    });
+    content.appendChild(customizeButton);
     return overlay;
+  }
+
+  private createCustomizationOverlay(
+    parent: HTMLElement,
+    characters: readonly CharacterDefinition[],
+    weapons: readonly WeaponDefinition[],
+    skins: readonly WeaponSkinDefinition[],
+  ): HTMLElement {
+    const overlay = this.createOverlay(parent, 'customization-overlay');
+    const panel = this.createPanel(overlay);
+    panel.classList.add('customization-panel');
+    const header = document.createElement('div');
+    header.className = 'customization-header';
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'eyebrow';
+    eyebrow.textContent = 'PHASE 05 / CHARACTER & LOADOUT';
+    const title = document.createElement('h2');
+    title.textContent = 'CONFIGURE OPERATIVE';
+    header.append(eyebrow, title);
+    panel.appendChild(header);
+
+    const layout = document.createElement('div');
+    layout.className = 'customization-layout';
+    const roster = document.createElement('div');
+    roster.className = 'character-roster';
+    const rosterLabel = document.createElement('p');
+    rosterLabel.className = 'eyebrow';
+    rosterLabel.textContent = 'OPERATIVE ROSTER';
+    roster.appendChild(rosterLabel);
+    for (const character of characters) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'character-card';
+      button.dataset.characterId = character.id;
+      const name = document.createElement('strong');
+      name.textContent = character.displayName;
+      const detail = document.createElement('span');
+      detail.textContent = character.visualTheme;
+      button.append(name, detail);
+      button.addEventListener('click', () => this.callbacks.onSelectCharacter(character.id));
+      this.characterButtons.set(character.id, button);
+      roster.appendChild(button);
+    }
+    layout.appendChild(roster);
+
+    this.previewMount = document.createElement('div');
+    this.previewMount.className = 'character-preview-mount';
+    this.previewMount.innerHTML = '<span>3D PREVIEW</span>';
+    layout.appendChild(this.previewMount);
+
+    const details = document.createElement('div');
+    details.className = 'customization-details';
+    this.characterDetails = document.createElement('div');
+    this.characterDetails.className = 'character-details';
+    details.appendChild(this.characterDetails);
+    this.paletteList = this.createChoiceSection(details, 'COLOR PALETTE');
+    this.outfitList = this.createChoiceSection(details, 'OUTFIT FINISH');
+    this.headList = this.createChoiceSection(details, 'HEAD VARIANT');
+    details.appendChild(this.createWeaponSection('PRIMARY WEAPON', weapons.filter((weapon) => weapon.category === 'primary'), skins, true));
+    details.appendChild(this.createWeaponSection('SECONDARY WEAPON', weapons.filter((weapon) => weapon.category === 'secondary'), skins, false));
+    layout.appendChild(details);
+    panel.appendChild(layout);
+
+    this.customizationStatus = document.createElement('p');
+    this.customizationStatus.className = 'customization-status';
+    panel.appendChild(this.customizationStatus);
+    const actions = document.createElement('div');
+    actions.className = 'customization-actions';
+    const reset = document.createElement('button');
+    reset.className = 'secondary-button';
+    reset.type = 'button';
+    reset.textContent = 'Reset Appearance';
+    reset.addEventListener('click', this.callbacks.onResetAppearance);
+    const back = document.createElement('button');
+    back.className = 'secondary-button';
+    back.type = 'button';
+    back.textContent = 'Back to Maps';
+    back.addEventListener('click', () => {
+      this.setCustomizationVisible(false);
+      this.callbacks.onCloseCustomization();
+    });
+    const save = document.createElement('button');
+    save.className = 'primary-button';
+    save.type = 'button';
+    save.textContent = 'Save Configuration';
+    save.addEventListener('click', this.callbacks.onSaveCustomization);
+    actions.append(reset, back, save);
+    panel.appendChild(actions);
+    return overlay;
+  }
+
+  private createChoiceSection(parent: HTMLElement, label: string): HTMLElement {
+    const section = document.createElement('section');
+    section.className = 'choice-section';
+    const title = document.createElement('small');
+    title.textContent = label;
+    const list = document.createElement('div');
+    list.className = 'choice-list';
+    section.append(title, list);
+    parent.appendChild(section);
+    return list;
+  }
+
+  private createWeaponSection(label: string, weapons: readonly WeaponDefinition[], skins: readonly WeaponSkinDefinition[], primary: boolean): HTMLElement {
+    const section = document.createElement('section');
+    section.className = 'loadout-section';
+    const title = document.createElement('small');
+    title.textContent = label;
+    const weaponSelect = document.createElement('select');
+    for (const weapon of weapons) {
+      const option = document.createElement('option');
+      option.value = weapon.id;
+      option.textContent = weapon.displayName;
+      weaponSelect.appendChild(option);
+    }
+    const skinSelect = document.createElement('select');
+    for (const skin of skins) {
+      const option = document.createElement('option');
+      option.value = skin.id;
+      option.textContent = `${skin.displayName} skin`;
+      skinSelect.appendChild(option);
+    }
+    weaponSelect.addEventListener('change', () => primary ? this.callbacks.onSelectPrimary(weaponSelect.value) : this.callbacks.onSelectSecondary(weaponSelect.value));
+    skinSelect.addEventListener('change', () => primary ? this.callbacks.onSelectPrimarySkin(skinSelect.value) : this.callbacks.onSelectSecondarySkin(skinSelect.value));
+    const preview = document.createElement('button');
+    preview.type = 'button';
+    preview.className = 'choice-button';
+    preview.textContent = 'Preview weapon';
+    preview.addEventListener('click', () => this.callbacks.onPreviewWeapon(weaponSelect.value, skinSelect.value));
+    if (primary) {
+      this.primarySelect = weaponSelect;
+      this.primarySkinSelect = skinSelect;
+    } else {
+      this.secondarySelect = weaponSelect;
+      this.secondarySkinSelect = skinSelect;
+    }
+    section.append(title, weaponSelect, skinSelect, preview);
+    return section;
+  }
+
+  private updateChoiceButtons(parent: HTMLElement, choices: readonly (readonly [string, string])[], selected: string, onSelect: (id: string) => void): void {
+    parent.replaceChildren();
+    for (const [id, label] of choices) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'choice-button';
+      button.textContent = label;
+      button.classList.toggle('choice-selected', id === selected);
+      button.addEventListener('click', () => onSelect(id));
+      parent.appendChild(button);
+    }
   }
 
   private createPauseOverlay(parent: HTMLElement): HTMLElement {
@@ -374,7 +610,7 @@ export class AppShell {
 
     const note = document.createElement('span');
     note.className = 'hud-note';
-    note.textContent = 'Practice arena / weapons, damage, and NPC tactics';
+    note.textContent = 'Arena combat / operative, loadout, and NPC systems';
     hud.appendChild(note);
 
     const crosshair = document.createElement('span');

@@ -1,10 +1,13 @@
 import type { WeaponDefinition } from './WeaponTypes';
 import { WeaponRuntime } from './WeaponRuntime';
+import type { PlayerLoadout } from '../loadouts/LoadoutTypes';
 
 export class WeaponInventory {
   private readonly runtimes = new Map<string, WeaponRuntime>();
   private readonly weaponIds: string[];
   private activeWeaponId: string;
+  private primaryWeaponId: string;
+  private secondaryWeaponId: string;
 
   public constructor(catalog: ReadonlyMap<string, WeaponDefinition>) {
     this.weaponIds = [...catalog.keys()];
@@ -15,6 +18,8 @@ export class WeaponInventory {
       this.runtimes.set(definition.id, new WeaponRuntime(definition));
     }
     this.activeWeaponId = this.weaponIds[0];
+    this.primaryWeaponId = catalog.get('assault-rifle') ? 'assault-rifle' : this.weaponIds[0];
+    this.secondaryWeaponId = catalog.get('pistol') ? 'pistol' : this.weaponIds.find((id) => id !== this.primaryWeaponId) ?? this.primaryWeaponId;
   }
 
   public get active(): WeaponRuntime {
@@ -23,6 +28,20 @@ export class WeaponInventory {
 
   public get allWeaponIds(): readonly string[] {
     return this.weaponIds;
+  }
+
+  public get loadout(): Pick<PlayerLoadout, 'primaryWeaponId' | 'secondaryWeaponId'> {
+    return { primaryWeaponId: this.primaryWeaponId, secondaryWeaponId: this.secondaryWeaponId };
+  }
+
+  public applyLoadout(loadout: Pick<PlayerLoadout, 'primaryWeaponId' | 'secondaryWeaponId'>): boolean {
+    const primary = this.runtimes.get(loadout.primaryWeaponId)?.definition;
+    const secondary = this.runtimes.get(loadout.secondaryWeaponId)?.definition;
+    if (!primary || !secondary || primary.category !== 'primary' || secondary.category !== 'secondary' || primary.id === secondary.id) return false;
+    this.primaryWeaponId = primary.id;
+    this.secondaryWeaponId = secondary.id;
+    this.activeWeaponId = primary.id;
+    return true;
   }
 
   public getRuntime(weaponId: string): WeaponRuntime | null {
@@ -47,7 +66,7 @@ export class WeaponInventory {
     for (const runtime of this.runtimes.values()) {
       runtime.reset();
     }
-    this.activeWeaponId = this.weaponIds[0];
+    this.activeWeaponId = this.primaryWeaponId;
   }
 
   public addReserveAmmo(amount: number, weaponIds = this.weaponIds): number {

@@ -53,6 +53,7 @@ export class NPCController implements Damageable {
   private readonly movement = new THREE.Vector3();
   private currentHealth: number;
   private currentTime = 0;
+  private targetAcquiredAt = -Infinity;
   private nextDecisionAt = 0;
   private nextFireAt = 0;
   private destination: THREE.Vector3 | null = null;
@@ -200,6 +201,7 @@ export class NPCController implements Damageable {
     }
 
     const playerSnapshot = playerPosition.clone().add(new THREE.Vector3(0, 1, 0));
+    const wasVisible = this.memory.snapshot.targetVisible;
     const observation = this.perception.observe(
       this.position,
       this.root.rotation.y,
@@ -208,6 +210,7 @@ export class NPCController implements Damageable {
       this.currentTime,
       this.difficulty.memoryDuration,
     );
+    if (observation.visible && !wasVisible) this.targetAcquiredAt = this.currentTime;
     this.weapon.update(delta);
     if (this.currentTime >= this.nextDecisionAt) {
       this.nextDecisionAt = this.currentTime + this.definition.decisionInterval * this.difficulty.decisionIntervalMultiplier;
@@ -230,6 +233,7 @@ export class NPCController implements Damageable {
     this.stuckTime = 0;
     this.nextDecisionAt = 0;
     this.nextFireAt = 0;
+    this.targetAcquiredAt = -Infinity;
     this.memory.clear();
     this.navigation.clear();
     this.weapon.runtime.reset();
@@ -264,15 +268,7 @@ export class NPCController implements Damageable {
   public dispose(): void {
     this.collisionWorld.removeActor(this.entityId);
     this.scene.remove(this.root);
-    this.visual.body.geometry.dispose();
-    this.visual.head.geometry.dispose();
-    this.visual.weapon.geometry.dispose();
-    const materials = [this.visual.body.material, this.visual.head.material, this.visual.weapon.material];
-    for (const material of materials) {
-      if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
-      else material.dispose();
-    }
-    this.root.clear();
+    this.visual.dispose();
   }
 
   private chooseAction(observation: { visible: boolean; distance: number; targetPosition: THREE.Vector3 }): void {
@@ -315,7 +311,7 @@ export class NPCController implements Damageable {
     if (this.stateMachine.state === NPCState.ENGAGE || this.stateMachine.state === NPCState.STRAFE) {
       this.destination = null;
       this.faceTarget(playerPosition, delta);
-      if (observation.visible && this.currentTime - this.memory.snapshot.lastSeenTime >= this.difficulty.reactionDelay && this.currentTime >= this.nextFireAt) {
+      if (observation.visible && this.currentTime - this.targetAcquiredAt >= this.difficulty.reactionDelay && this.currentTime >= this.nextFireAt) {
         const direction = playerPosition.clone().sub(this.getAimOrigin()).normalize();
         const aimError = this.getAimError(observation.distance);
         if (this.weapon.tryFire(this.getAimOrigin(), direction, aimError)) {

@@ -7,6 +7,8 @@ import { CollisionWorld } from '../src/physics/CollisionWorld';
 import { TargetDummy } from '../src/targets/TargetDummy';
 import { WeaponController } from '../src/weapons/WeaponController';
 import { InputManager, type InputEventTarget } from '../src/engine/InputManager';
+import { WeaponSkinRegistry } from '../src/cosmetics/WeaponSkinRegistry';
+import { WEAPON_SKIN_DEFINITIONS } from '../src/cosmetics/WeaponSkinDefinitions';
 
 class FakeEventTarget implements InputEventTarget {
   private readonly listeners = new Map<string, Set<EventListener>>();
@@ -63,6 +65,11 @@ describe('WeaponController', () => {
         getPlayerMovement: () => ({ horizontalSpeed: 0 }),
       },
     );
+    const skins = new WeaponSkinRegistry(WEAPON_SKIN_DEFINITIONS);
+    expect(controller.applyLoadout({ primaryWeaponId: 'sniper-rifle', secondaryWeaponId: 'pistol', primarySkinId: 'arctic', secondarySkinId: 'standard' }, skins)).toBe(true);
+    expect(controller.getLoadout().primaryWeaponId).toBe('sniper-rifle');
+    expect(controller.getHudState().weaponId).toBe('sniper-rifle');
+    expect(controller.applyLoadout({ primaryWeaponId: 'assault-rifle', secondaryWeaponId: 'pistol', primarySkinId: 'standard', secondarySkinId: 'standard' }, skins)).toBe(true);
     controller.setActive(true);
 
     inputTarget.dispatch('mousedown', '', 0);

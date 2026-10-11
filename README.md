@@ -1,6 +1,6 @@
 # NEON STRIKE
 
-NEON STRIKE is an original browser-based single-player 3D FPS in development. Phase 04 extends the Phase 00–03 foundation with three selectable, combat-ready procedural arenas: NEON YARD, DUSTLINE DEPOT, and SKYBRIDGE.
+NEON STRIKE is an original browser-based single-player 3D FPS in development. Phase 05 extends the Phase 00–04 foundation with five selectable operatives, procedural character previews, appearance customization, primary/secondary loadouts, weapon skins, NPC visual variants, and versioned local preferences.
 
 ## Requirements
 
@@ -73,6 +73,12 @@ npm run typecheck
 - `src/ai/NPCPerception.ts` / `src/ai/NPCMemory.ts` — FOV, range, static-world line of sight, last-known target memory, sound/damage memory, and decay.
 - `src/ai/NPCWeaponAdapter.ts` — NPC firing adapter over the shared `WeaponRuntime` catalog and `DamageSystem`.
 - `src/characters/NPCCharacterFactory.ts` — procedural NPC body, critical head region, and weapon visuals.
+- `src/characters/CharacterTypes.ts` / `src/characters/CharacterDefinitions.ts` — typed operative identities, palettes, silhouettes, and supported visual variants.
+- `src/characters/CharacterRegistry.ts` / `src/characters/CharacterCustomization.ts` — validated character catalog and appearance-selection state.
+- `src/characters/CharacterFactory.ts` — disposable procedural character models used by previews and NPC visual variants.
+- `src/characters/CharacterPreview.ts` — isolated character/weapon preview scene rendered through the existing renderer with scissor bounds.
+- `src/characters/CharacterVisualAdapter.ts` — first-person cosmetic forearm/accent presentation that does not affect player collision.
+- `src/characters/NPCVisualVariants.ts` — archetype-to-character appearance mapping independent of NPC behavior.
 - `src/player/PlayerController.ts` — player system coordinator and lifecycle owner.
 - `src/player/PlayerMotor.ts` — fixed-step acceleration, friction, sprint, air control, jumping, gravity, ground state, and recovery.
 - `src/player/PlayerLook.ts` — yaw/pitch mouse-look with sensitivity and pitch limits.
@@ -85,6 +91,10 @@ npm run typecheck
 - `src/weapons/WeaponInventory.ts` — runtime instances and development weapon cycling.
 - `src/weapons/WeaponController.ts` — centralized weapon input, firing modes, spread, hit resolution, recoil, switching, and HUD status.
 - `src/weapons/WeaponPresentation.ts` — procedural first-person weapon models and firing presentation.
+- `src/cosmetics/WeaponSkinDefinitions.ts` / `src/cosmetics/WeaponSkinRegistry.ts` — validated Standard, Neon Circuit, Sandstorm, Arctic, and Dark Carbon skin catalog.
+- `src/cosmetics/WeaponSkinApplicator.ts` — cosmetic-only weapon material application.
+- `src/loadouts/LoadoutManager.ts` / `src/loadouts/LoadoutValidator.ts` — primary/secondary slot validation over the authoritative weapon catalog.
+- `src/persistence/SaveManager.ts` / `src/persistence/SaveSchema.ts` / `src/persistence/SaveMigrations.ts` — versioned local character, appearance, loadout, and skin preferences.
 - `src/weapons/RecoilController.ts` — weapon-specific camera recoil and recovery.
 - `src/weapons/AmmoPickupSystem.ts` — bounded practice ammunition pickups.
 - `src/combat/HitDetection.ts` — camera-center target raycast combined with Rapier world obstruction.
@@ -100,7 +110,7 @@ npm run typecheck
 
 ## Current feature status
 
-Phase 04 is implemented: the main menu presents three real map choices and MapManager instantiates only the selected map. Neon Yard is a compact training facility with a central block, loop routes, barriers, and an elevated west platform. Dustline Depot is a warm industrial cargo layout with container lanes, a loading bay, long sightlines, and a raised loading flank. Skybridge is a multi-level arena with lower cover, ramps, upper platforms, and connecting bridges. Every map owns its visual root, static Rapier collision, navigation graph, cover registry, player/NPC spawns, training targets, pickups, lighting, and cleanup callback. NPCs are rebuilt from active-map spawn and navigation data, while player movement, weapons, damage, pickups, diagnostics, and resets remain shared systems. Multiplayer, progression, crouching, and sliding remain deferred.
+Phase 05 is implemented: the main menu opens a functional operative and loadout screen containing Vanguard, Volt, Bastion, Ghostline, and Circuit. Each character has a distinct procedural silhouette, two validated palettes, outfit/head variants, and compatible accessory slots. The selected character is rendered in an isolated 3D preview, while a preview action displays the selected weapon skin through the same procedural weapon model family used in first-person. Primary and secondary weapons are validated against the existing seven-weapon catalog, `1`/`2` switch the configured slots, `Q` and the mouse wheel retain development access to the full catalog, and skins change materials only. The selected appearance drives first-person forearm accents and NPC archetype visual variants without changing collision, health, movement, AI, or weapon statistics. Preferences persist through schema-versioned local storage with safe fallback behavior. Multiplayer, progression, crouching, and sliding remain deferred.
 
 ## Phase 04 map catalog
 
@@ -109,6 +119,20 @@ Phase 04 is implemented: the main menu presents three real map choices and MapMa
 | NEON YARD (`neon-yard`) | Compact central training block, side loops, short/medium lanes | West ramp and upper training platform | 10 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
 | DUSTLINE DEPOT (`dustline-depot`) | Cargo-container lanes, loading bay, exposed long lane, flank route | Loading ramp and raised platform | 11 navigation nodes, 7 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
 | SKYBRIDGE (`skybridge`) | Lower arena, exposed bridges, sheltered cover, layered sightlines | Two upper platforms and two supported ramps | 12 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+
+## Phase 05 character and loadout catalog
+
+| Operative | Visual identity | Supported appearance | NPC use |
+|---|---|---|---|
+| VANGUARD | Balanced tactical armor with cyan identification | Two palettes, visor/helmet, standard/reinforced outfit, shoulder plate | Rifleman |
+| VOLT | Angular lightweight specialist with circuitry | Two palettes, visor variants, standard/pulse outfit, back cell | Scout and Flanker |
+| BASTION | Broad reinforced graphite armor with orange accents | Two palettes, helmet variants, standard/bulwark outfit, shoulder/back accessories | Heavy |
+| GHOSTLINE | Narrow precision operative with cool visor | Two palettes, visor/hooded visor, standard/longcoat outfit, shoulder plate | Sniper |
+| CIRCUIT | Robotic synthetic training unit with sensor core | Two palettes, sensor variants, standard/industrial outfit, back cell | Defender |
+
+Loadouts use the authoritative Phase 02 weapon catalog with one primary and one secondary slot. The initial cosmetic skin catalog contains Standard Issue, Neon Circuit, Sandstorm, Arctic, and Dark Carbon. Skin application changes only owned presentation materials; damage, cadence, ammunition, spread, recoil, and range remain definition data.
+
+Character, appearance, loadout, and skin preferences are stored under the versioned `neon-strike.player-preferences` local-storage key. Invalid or obsolete values fall back to VANGUARD and the default assault-rifle/pistol configuration.
 
 ## Weapon and combat architecture
 
@@ -141,8 +165,8 @@ Starting weapon catalog:
 
 ## Upcoming implementation
 
-- Phase 05: playable characters, character selection, loadouts, and customization.
-- Later phases: game modes, progression, audio, effects, polish, and optimization.
+- Phase 06: progression, XP, unlocks, achievements, and availability rules.
+- Later phases: game modes, audio, effects, polish, and optimization.
 
 ## Manual controller validation
 
@@ -162,6 +186,9 @@ Starting weapon catalog:
 14. Verify the player can be damaged by NPC fire and can reset the complete encounter from the pause menu.
 15. Return to the menu, select a different map, and verify that the new collision, lighting, pickups, targets, NPC spawns, navigation, and cover are active.
 16. Repeat transitions through all three maps and confirm that old geometry, NPCs, paths, pickups, and targets do not remain active.
+17. Open **Configure Character & Loadout**, select each operative, change palettes and variants, and inspect the isolated 3D preview.
+18. Configure a primary and secondary weapon, apply different skins, preview a weapon, save the configuration, and verify the actual first-person model and slot switching.
+19. Reload the browser and verify the saved operative, appearance, weapons, and skins are restored.
 
 ## Known limitations
 
@@ -172,4 +199,7 @@ Starting weapon catalog:
 - The three procedural maps use explicit simplified box colliders aligned to their solid structures; arbitrary mesh collision conversion is not implemented yet.
 - The current map transition path is synchronous because all Phase 04 geometry is procedural and locally generated. It still exposes explicit lifecycle states and rejects re-entrant transitions; asynchronous asset cancellation is deferred until external assets are introduced.
 - Browser integration tests for WebGL rendering, Pointer Lock, visual traversal, and audio were not run in the development environment because Chromium/Playwright is unavailable.
+- Character and weapon previews are procedural local geometry; no external rigged character assets or full skeletal animation library is required.
+- Character customization currently changes palettes, outfit/head variants, supported accessories, and first-person cosmetic accents. It does not change gameplay statistics or collision dimensions.
+- Save preferences use browser local storage when available; storage failures preserve the active configuration for the current session.
 - Weapon audio uses local Web Audio tones as a dependency-free fallback rather than final production assets.

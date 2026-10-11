@@ -1,32 +1,40 @@
 import * as THREE from 'three';
 import type { WeaponDefinition } from './WeaponTypes';
+import type { WeaponSkinDefinition } from '../cosmetics/WeaponSkinDefinitions';
+import { applyWeaponSkin } from '../cosmetics/WeaponSkinApplicator';
 
 export interface WeaponModel {
   group: THREE.Group;
   muzzle: THREE.Object3D;
   flash: THREE.Mesh;
+  materials: {
+    body: THREE.MeshStandardMaterial;
+    detail: THREE.MeshStandardMaterial;
+    energy: THREE.MeshStandardMaterial;
+    flash: THREE.MeshBasicMaterial;
+  };
 }
 
-export function createWeaponModel(definition: WeaponDefinition): WeaponModel {
+export function createWeaponModel(definition: WeaponDefinition, skin?: WeaponSkinDefinition): WeaponModel {
   const group = new THREE.Group();
   group.name = `WeaponModel:${definition.id}`;
   group.scale.setScalar(definition.visual.scale);
   const bodyMaterial = new THREE.MeshStandardMaterial({
-    color: definition.visual.primaryColor,
-    metalness: 0.7,
-    roughness: 0.35,
+    color: skin?.primaryColor ?? definition.visual.primaryColor,
+    metalness: skin?.metalness ?? 0.7,
+    roughness: skin?.roughness ?? 0.35,
   });
   const detailMaterial = new THREE.MeshStandardMaterial({
-    color: definition.visual.secondaryColor,
-    metalness: 0.55,
-    roughness: 0.28,
+    color: skin?.secondaryColor ?? definition.visual.secondaryColor,
+    metalness: skin?.metalness ?? 0.55,
+    roughness: skin?.roughness ?? 0.28,
   });
   const energyMaterial = new THREE.MeshStandardMaterial({
-    color: definition.visual.energyColor,
-    emissive: definition.visual.energyColor,
+    color: skin?.energyColor ?? definition.visual.energyColor,
+    emissive: skin?.energyColor ?? definition.visual.energyColor,
     emissiveIntensity: 3,
-    metalness: 0.15,
-    roughness: 0.2,
+    metalness: skin?.metalness ?? 0.15,
+    roughness: skin?.roughness ?? 0.2,
   });
 
   const bodySize = definition.id === 'pistol' ? [0.18, 0.16, 0.55] : definition.id === 'sniper-rifle' ? [0.24, 0.2, 1.5] : [0.28, 0.2, 0.9] as [number, number, number];
@@ -77,9 +85,26 @@ export function createWeaponModel(definition: WeaponDefinition): WeaponModel {
   group.add(muzzle);
   const flash = new THREE.Mesh(
     new THREE.SphereGeometry(0.09, 6, 4),
-    new THREE.MeshBasicMaterial({ color: definition.visual.energyColor, transparent: true, opacity: 0.9 }),
+    new THREE.MeshBasicMaterial({ color: skin?.energyColor ?? definition.visual.energyColor, transparent: true, opacity: 0.9 }),
   );
   flash.visible = false;
   muzzle.add(flash);
-  return { group, muzzle, flash };
+  const model = { group, muzzle, flash, materials: { body: bodyMaterial, detail: detailMaterial, energy: energyMaterial, flash: flash.material } };
+  if (skin) applyWeaponSkin(model, definition, skin);
+  else group.userData.skinId = 'standard';
+  return model;
+}
+
+export function disposeWeaponModel(model: WeaponModel): void {
+  if (model.group.userData.disposed) return;
+  model.group.userData.disposed = true;
+  model.group.removeFromParent();
+  const geometries = new Set<THREE.BufferGeometry>();
+  model.group.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (mesh.geometry) geometries.add(mesh.geometry);
+  });
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of Object.values(model.materials)) material.dispose();
+  model.group.clear();
 }

@@ -28,6 +28,17 @@ import { createMapRegistry } from '../world/MapRegistry';
 import { MapManager } from '../world/MapManager';
 import { MAP_DEFINITIONS } from '../world/maps/MapCatalog';
 import type { MapInstance } from '../world/MapInstance';
+import { CharacterRegistry } from '../characters/CharacterRegistry';
+import { CHARACTER_DEFINITIONS } from '../characters/CharacterDefinitions';
+import { CharacterSelection } from '../characters/CharacterCustomization';
+import { CharacterPreview } from '../characters/CharacterPreview';
+import { WeaponSkinRegistry } from '../cosmetics/WeaponSkinRegistry';
+import { WEAPON_SKIN_DEFINITIONS } from '../cosmetics/WeaponSkinDefinitions';
+import { LoadoutManager } from '../loadouts/LoadoutManager';
+import { SaveManager } from '../persistence/SaveManager';
+import { createWeaponCatalog } from '../weapons/WeaponDefinitions';
+import { getWeaponDefinition } from '../weapons/WeaponDefinitions';
+import type { PlayerLoadout } from '../loadouts/LoadoutTypes';
 
 export class GameApp {
   private readonly root: HTMLElement;
@@ -35,6 +46,11 @@ export class GameApp {
   private readonly stateMachine = new GameStateMachine();
   private readonly shell: AppShell;
   private readonly mapRegistry = createMapRegistry(MAP_DEFINITIONS);
+  private readonly characterRegistry = new CharacterRegistry(CHARACTER_DEFINITIONS);
+  private readonly weaponSkinRegistry = new WeaponSkinRegistry(WEAPON_SKIN_DEFINITIONS);
+  private readonly loadoutManager = new LoadoutManager(createWeaponCatalog(), this.weaponSkinRegistry);
+  private readonly characterSelection = new CharacterSelection(this.characterRegistry);
+  private readonly saveManager = new SaveManager(this.characterRegistry, this.loadoutManager);
   private renderer: Renderer | null = null;
   private sceneManager: SceneManager | null = null;
   private collisionWorld: CollisionWorld | null = null;
@@ -64,6 +80,7 @@ export class GameApp {
   private playerSettings: PlayerSettings;
   private resumePending = false;
   private selectedMapId = 'neon-yard';
+  private characterPreview: CharacterPreview | null = null;
 
   public constructor(root: HTMLElement, config = createGameConfig()) {
     this.root = root;
@@ -73,6 +90,8 @@ export class GameApp {
     this.sensitivityMaximum = this.playerConfig.look.mouseSensitivity * 4;
     this.playerSettings = defaultPlayerSettings(this.playerConfig);
     this.playerSettings = this.playerSettingsStore.load(this.playerSettings, this.playerConfig);
+    const savedPreferences = this.saveManager.load();
+    this.characterSelection.setAppearance(savedPreferences.appearance);
     document.title = `${config.applicationTitle} — Arena Combat`;
     this.shell = new AppShell(root, {
       onStartPractice: () => this.startPractice(),
@@ -85,11 +104,25 @@ export class GameApp {
       onFieldOfViewChange: (value) => this.setFieldOfView(value),
       onHeadBobChange: (enabled) => this.setHeadBobEnabled(enabled),
       onSelectMap: (mapId) => this.selectMap(mapId),
+      onOpenCustomization: () => this.openCustomization(),
+      onCloseCustomization: () => this.closeCustomization(),
+      onSelectCharacter: (id) => this.selectCharacter(id),
+      onSelectPalette: (id) => this.changeAppearance(() => this.characterSelection.setPalette(id)),
+      onSelectOutfit: (id) => this.changeAppearance(() => this.characterSelection.setOutfit(id)),
+      onSelectHeadVariant: (id) => this.changeAppearance(() => this.characterSelection.setHeadVariant(id)),
+      onSelectPrimary: (id) => this.changeLoadout(() => this.loadoutManager.setPrimaryWeapon(id)),
+      onSelectSecondary: (id) => this.changeLoadout(() => this.loadoutManager.setSecondaryWeapon(id)),
+      onSelectPrimarySkin: (id) => this.changeLoadout(() => this.loadoutManager.setPrimarySkin(id)),
+      onSelectSecondarySkin: (id) => this.changeLoadout(() => this.loadoutManager.setSecondarySkin(id)),
+      onPreviewWeapon: (weaponId, skinId) => this.previewWeapon(weaponId, skinId),
+      onResetAppearance: () => this.changeAppearance(() => this.characterSelection.resetAppearance()),
+      onSaveCustomization: () => this.saveCustomization(),
       showDiagnosticsControl: this.config.development,
-    }, this.mapRegistry.list());
+    }, this.mapRegistry.list(), this.characterRegistry.list(), this.loadoutManager.weaponCatalog, this.weaponSkinRegistry.list());
     this.shell.setState(this.stateMachine.state);
     this.shell.setSettings(this.playerSettings);
     this.shell.setMapSelection(this.selectedMapId);
+    this.shell.setCustomizationState(this.characterSelection.definition, this.characterSelection.appearance, this.loadoutManager.loadout);
   }
 
   public async start(): Promise<void> {
@@ -120,6 +153,7 @@ export class GameApp {
     this.lifecycle?.dispose();
     this.input?.dispose();
     this.player?.dispose();
+    this.characterPreview?.dispose();
     this.weapons?.dispose();
     this.ammoPickups?.dispose();
     this.targetRange?.dispose();
@@ -151,6 +185,7 @@ export class GameApp {
     this.collisionWorld = null;
     this.mapManager = null;
     this.renderer = null;
+    this.characterPreview = null;
   }
 
   private async initializeSystems(): Promise<void> {
@@ -173,6 +208,8 @@ export class GameApp {
       this.playerConfig,
     );
     this.player.applySettings(this.playerSettings);
+    this.characterPreview = new CharacterPreview();
+    this.applyVisualConfiguration();
     this.combatEvents = new CombatEventBus();
     this.damageSystem = new DamageSystem(this.combatEvents);
     this.playerHealth = new PlayerHealth(this.player.getRoot());
@@ -204,6 +241,8 @@ export class GameApp {
         getPlayerMovement: () => ({ horizontalSpeed: this.player?.getSnapshot().horizontalSpeed ?? 0 }),
       },
     );
+    this.weapons.applyLoadout(this.loadoutManager.loadout, this.weaponSkinRegistry);
+    this.weapons.applyCharacter(this.characterSelection.definition, this.characterSelection.appearance);
     this.ammoPickups = new AmmoPickupSystem(initialMap.pickups);
     this.sceneManager.scene.add(this.ammoPickups.group);
     this.unsubscribeCombat = this.combatEvents.subscribe((event) => {
@@ -269,6 +308,7 @@ export class GameApp {
       this.player?.setActive(nextState === ApplicationState.PLAYING);
       this.weapons?.setActive(nextState === ApplicationState.PLAYING);
       this.npcManager?.setActive(nextState === ApplicationState.PLAYING);
+      this.characterPreview?.setVisible(false);
     });
 
     this.lifecycle = new AppLifecycle(document, window, {
@@ -366,7 +406,8 @@ export class GameApp {
     if (this.stateMachine.state !== ApplicationState.PAUSED) {
       return;
     }
-    this.player?.reset();
+    const playerSpawn = this.mapManager?.current?.playerSpawns[0];
+    this.player?.reset(playerSpawn ? [playerSpawn.position.x, playerSpawn.position.y, playerSpawn.position.z] : undefined);
     this.playerHealth?.reset();
     this.npcManager?.reset();
     this.targetRange?.reset();
@@ -383,6 +424,70 @@ export class GameApp {
     this.shell.setMapSelection(mapId);
   }
 
+  private openCustomization(): void {
+    if (this.stateMachine.state !== ApplicationState.MAIN_MENU) return;
+    this.characterPreview?.showCharacter(this.characterSelection.definition, this.characterSelection.appearance);
+    this.characterPreview?.setVisible(true);
+    this.shell.setCustomizationVisible(true);
+  }
+
+  private closeCustomization(): void {
+    this.characterPreview?.setVisible(false);
+    this.shell.setCustomizationVisible(false);
+  }
+
+  private selectCharacter(id: string): void {
+    try {
+      this.characterSelection.selectCharacter(id);
+      this.applyVisualConfiguration();
+      this.shell.setCustomizationStatus(`${this.characterSelection.definition.displayName} selected.`);
+    } catch (error) {
+      this.shell.setCustomizationStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private changeAppearance(change: () => unknown): void {
+    try {
+      change();
+      this.applyVisualConfiguration();
+      this.shell.setCustomizationStatus('Appearance updated. Save configuration to persist it.');
+    } catch (error) {
+      this.shell.setCustomizationStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private changeLoadout(change: () => PlayerLoadout): void {
+    try {
+      change();
+      if (this.stateMachine.state === ApplicationState.MAIN_MENU) this.weapons?.applyLoadout(this.loadoutManager.loadout, this.weaponSkinRegistry);
+      this.shell.setCustomizationStatus('Loadout updated. Save configuration to persist it.');
+      this.shell.setCustomizationState(this.characterSelection.definition, this.characterSelection.appearance, this.loadoutManager.loadout);
+    } catch (error) {
+      this.shell.setCustomizationStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private saveCustomization(): void {
+    const saved = this.saveManager.save({ characterId: this.characterSelection.selectedCharacterId, appearance: this.characterSelection.appearance, loadout: this.loadoutManager.loadout });
+    this.shell.setCustomizationStatus(saved ? 'Configuration saved locally.' : 'Configuration active for this session; browser storage was unavailable.');
+  }
+
+  private previewWeapon(weaponId: string, skinId: string): void {
+    try {
+      this.characterPreview?.showWeapon(getWeaponDefinition(weaponId), this.weaponSkinRegistry.get(skinId));
+      this.characterPreview?.setVisible(true);
+      this.shell.setCustomizationStatus('Weapon preview updated. Select an operative to return to the character preview.');
+    } catch (error) {
+      this.shell.setCustomizationStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private applyVisualConfiguration(): void {
+    this.characterPreview?.showCharacter(this.characterSelection.definition, this.characterSelection.appearance);
+    this.weapons?.applyCharacter(this.characterSelection.definition, this.characterSelection.appearance);
+    this.shell.setCustomizationState(this.characterSelection.definition, this.characterSelection.appearance, this.loadoutManager.loadout);
+  }
+
   private activateMapEncounter(map: MapInstance): void {
     const playerSpawn = map.playerSpawns[0];
     if (!playerSpawn) {
@@ -392,6 +497,8 @@ export class GameApp {
     this.playerHealth?.reset();
     this.npcManager?.setMap(map);
     this.npcManager?.reset();
+    this.weapons?.applyLoadout(this.loadoutManager.loadout, this.weaponSkinRegistry);
+    this.applyVisualConfiguration();
     this.targetRange?.setDefinitions(map.trainingTargets);
     this.ammoPickups?.setDefinitions(map.pickups);
     this.ammoPickups?.reset();
@@ -416,6 +523,7 @@ export class GameApp {
     if (playerPosition && this.weapons) {
       this.ammoPickups?.update(_deltaSeconds, playerPosition, this.weapons);
     }
+    this.characterPreview?.update(_deltaSeconds);
   }
 
   private render(_interpolation: number, _metrics: GameLoopMetrics): void {
@@ -424,6 +532,11 @@ export class GameApp {
     }
 
     this.renderer.render(this.sceneManager.scene, this.sceneManager.camera);
+    if (this.characterPreview?.isVisible) {
+      const bounds = this.shell.customizationPreviewMount.getBoundingClientRect();
+      this.characterPreview.resize(bounds.width / Math.max(bounds.height, 1));
+      this.renderer.renderPreview(this.characterPreview.scene, this.characterPreview.camera, bounds);
+    }
     if (this.weapons) {
       this.shell.setWeaponStatus(this.weapons.getHudState());
     }

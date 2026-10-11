@@ -11,6 +11,10 @@ import { WeaponInventory } from './WeaponInventory';
 import { WeaponPresentation } from './WeaponPresentation';
 import type { WeaponDefinition, WeaponHudState } from './WeaponTypes';
 import { createWeaponCatalog } from './WeaponDefinitions';
+import type { PlayerLoadout } from '../loadouts/LoadoutTypes';
+import type { WeaponSkinRegistry } from '../cosmetics/WeaponSkinRegistry';
+import { validateLoadout } from '../loadouts/LoadoutValidator';
+import type { CharacterDefinition, CharacterAppearance } from '../characters/CharacterTypes';
 
 export interface WeaponControllerCallbacks {
   onRecoil: (yaw: number, pitch: number) => void;
@@ -67,6 +71,7 @@ export class WeaponController {
 
   public setActive(active: boolean): void {
     this.active = active;
+    this.presentation.setCharacterVisible(active);
     if (!active) {
       this.stopTransientActions();
     }
@@ -139,6 +144,35 @@ export class WeaponController {
     };
   }
 
+  public getLoadout(): Pick<PlayerLoadout, 'primaryWeaponId' | 'secondaryWeaponId'> {
+    return this.inventory.loadout;
+  }
+
+  public applyLoadout(loadout: PlayerLoadout, skins: WeaponSkinRegistry): boolean {
+    if (this.active) throw new Error('Loadouts can only be applied outside gameplay.');
+    validateLoadout(loadout, createWeaponCatalog(), skins);
+    this.stopTransientActions();
+    if (!this.inventory.applyLoadout(loadout)) return false;
+    this.inventory.reset();
+    const primary = this.inventory.getRuntime(loadout.primaryWeaponId)?.definition;
+    const secondary = this.inventory.getRuntime(loadout.secondaryWeaponId)?.definition;
+    if (!primary || !secondary) return false;
+    for (const id of this.inventory.allWeaponIds) {
+      this.presentation.applySkin(id, this.inventory.getRuntime(id)!.definition, skins.get('standard'));
+    }
+    this.presentation.applySkin(primary.id, primary, skins.get(loadout.primarySkinId));
+    this.presentation.applySkin(secondary.id, secondary, skins.get(loadout.secondarySkinId));
+    this.presentation.equip(primary);
+    this.events.emit({ type: 'weapon-equipped', weapon: primary });
+    this.emitStatus();
+    return true;
+  }
+
+  public applyCharacter(definition: CharacterDefinition, appearance: CharacterAppearance): void {
+    if (this.active) throw new Error('Character appearance can only be applied outside gameplay.');
+    this.presentation.applyCharacter(definition, appearance);
+  }
+
   public addReserveAmmo(amount: number): number {
     return this.inventory.addReserveAmmo(amount);
   }
@@ -168,14 +202,13 @@ export class WeaponController {
     this.presentation.dispose();
     this.effects.dispose();
     this.audio.dispose();
-    this.events.clear();
   }
 
   private handleWeaponSelection(): void {
     if (this.input.consumePressed('Digit1')) {
-      this.beginSwitch('assault-rifle');
+      this.beginSwitch(this.inventory.loadout.primaryWeaponId);
     } else if (this.input.consumePressed('Digit2')) {
-      this.beginSwitch('pistol');
+      this.beginSwitch(this.inventory.loadout.secondaryWeaponId);
     } else if (this.input.consumePressed('KeyQ')) {
       this.beginSwitch(this.inventory.allWeaponIds[(this.inventory.allWeaponIds.indexOf(this.inventory.active.definition.id) + 1) % this.inventory.allWeaponIds.length]);
     } else {
@@ -213,6 +246,7 @@ export class WeaponController {
     }
     const targetId = this.switchTargetId;
     this.switchTargetId = null;
+    this.inventory.active.setSwitching(false);
     if (this.inventory.select(targetId)) {
       this.inventory.active.setSwitching(false);
       this.presentation.equip(this.inventory.active.definition);
@@ -347,6 +381,9 @@ export class WeaponController {
   }
 
   private stopTransientActions(): void {
+    if (this.switchTargetId) this.inventory.active.setSwitching(false);
+    this.inventory.active.cancelReload();
+    this.presentation.reset();
     this.burstShotsRemaining = 0;
     this.burstTimer = 0;
     this.switchRemaining = 0;
