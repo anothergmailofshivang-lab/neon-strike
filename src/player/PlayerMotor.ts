@@ -158,6 +158,7 @@ export class PlayerMotor {
   }
 
   public reset(position = this.config.spawnPosition): void {
+    this.collisionWorld.setActorEnabled('player', true);
     this.collisionWorld.resetPlayer(position, this.config.movement.standingHeight);
     this.position.fromArray(position);
     this.velocity.set(0, 0, 0);

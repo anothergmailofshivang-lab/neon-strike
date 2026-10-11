@@ -2,7 +2,7 @@ import type { DamageResult, DamageRequest } from './DamageTypes';
 import type { WeaponDefinition, WeaponHudState } from '../weapons/WeaponTypes';
 
 export type CombatEvent =
-  | { type: 'weapon-fired'; weapon: WeaponDefinition; shotCount: number }
+  | { type: 'weapon-fired'; weapon: WeaponDefinition; shotCount: number; sourceId?: string }
   | { type: 'shot-world-impact'; weapon: WeaponDefinition; point: { x: number; y: number; z: number } }
   | { type: 'damage-applied'; request: DamageRequest; result: DamageResult }
   | { type: 'critical-hit'; request: DamageRequest; result: DamageResult }

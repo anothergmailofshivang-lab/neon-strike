@@ -4,6 +4,7 @@ import type { DamageRequest, DamageResult } from '../combat/DamageTypes';
 
 export class PlayerHealth implements Damageable {
   public readonly entityId = 'player';
+  public readonly teamId = 'player';
   public readonly root: THREE.Object3D;
   public readonly maxHealth: number;
   private currentHealth: number;

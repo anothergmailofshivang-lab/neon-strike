@@ -7,6 +7,7 @@ describe('map registry', () => {
     const registry = createMapRegistry(MAP_DEFINITIONS);
     expect(registry.list().map((map) => map.id)).toEqual(['modern-city', 'industrial-facility', 'jungle-forest', 'sci-fi-facility', 'fantasy-ruins']);
     expect(registry.get('sci-fi-facility').tacticalTags).toContain('Vertical');
+    for (const map of registry.list()) expect(map.controlPoints).toHaveLength(3);
   });
 
   it('rejects duplicate map IDs and unknown selections', () => {

@@ -41,6 +41,14 @@ export interface MapTrainingTargetDefinition {
   accentColor: number;
 }
 
+export interface MapControlPointDefinition {
+  id: string;
+  displayName: string;
+  position: MapVector3;
+  radius: number;
+  tags: readonly string[];
+}
+
 export interface MapBuildOutput {
   root: THREE.Group;
   collisionDefinitions: readonly StaticBoxColliderDefinition[];
@@ -60,6 +68,7 @@ export interface MapDefinition {
   tacticalTags: readonly string[];
   dimensions: readonly [number, number];
   lighting: MapLightingDefinition;
+  controlPoints: readonly MapControlPointDefinition[];
   build: () => MapBuildOutput;
 }
 

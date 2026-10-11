@@ -62,10 +62,11 @@ npm run typecheck
 - `src/world/MapDefinition.ts` / `src/world/MapInstance.ts` — typed map metadata and active-map ownership.
 - `src/world/MapRegistry.ts` — validated map catalog and selection metadata.
 - `src/world/MapManager.ts` — map build, collision replacement, validation, activation, unload, rollback, and disposal lifecycle.
-- `src/world/MapValidation.ts` — structural, spawn-support, navigation, cover, pickup, and training-target validation.
+- `src/world/MapValidation.ts` — structural, spawn-support, capsule-clearance, navigation, cover, pickup, training-target, and control-point validation.
 - `src/world/maps/` — distinct Modern City, Industrial Facility, Jungle Frontier, Sci-Fi Facility, and Fantasy Ruins procedural builders and catalog.
 - `src/world/geometry/` — reusable map geometry, material, lighting, floor, boundary, ramp, rail, and trim helpers.
-- `src/navigation/NavigationGraph.ts` / `src/navigation/AStarPathfinder.ts` — tagged practice navigation graph and deterministic A* routes.
+- `src/navigation/NavigationGraph.ts` / `src/navigation/AStarPathfinder.ts` — tagged navigation graph and deterministic A* routes.
+- `src/navigation/WalkableNavigation.ts` — attaches mode objective approach nodes only after real floor, capsule-clearance, and route checks.
 - `src/world/CoverRegistry.ts` — world-geometry-validated cover point registry and cover scoring.
 - `src/ai/NPCManager.ts` — encounter lifecycle, registration, reset, respawn, and AI diagnostics summary.
 - `src/ai/NPCController.ts` — fixed-step NPC movement, perception-driven states, combat decisions, health, and lifecycle.
@@ -101,17 +102,23 @@ npm run typecheck
 - `src/combat/DamageSystem.ts` — validated damage, falloff, critical-hit, and defeat pipeline.
 - `src/combat/Damageable.ts` / `src/combat/DamageTypes.ts` — shared damageable and hit-region contracts.
 - `src/combat/CombatEvents.ts` — typed combat event bus.
+- `src/match/MatchTypes.ts` — authoritative match settings, participant statistics, teams, objective state, phases, and events.
+- `src/match/GameModeDefinitions.ts` — validated Free-for-All, Team Deathmatch, Domination, Survival, and Practice definitions.
+- `src/match/MatchSession.ts` — fixed-step match clock, countdown, round lifecycle, once-only elimination/scoring, timeout/tie resolution, and results snapshot.
+- `src/match/ObjectiveManager.ts` — world control-point markers, capture/contest state, passive objective scoring, and minimap objective state.
 - `src/targets/TargetDummy.ts` / `src/targets/TargetRange.ts` — reusable health-bearing practice targets with body and critical regions.
 - `src/player/PlayerHealth.ts` — player-side `Damageable` health target used by NPC fire.
 - `src/effects/CombatEffects.ts` — bounded muzzle/tracer/impact presentation effects.
 - `src/audio/WeaponAudio.ts` — lightweight local Web Audio weapon and reload feedback.
-- `src/ui/AppShell.ts` — state-driven startup, pause, settings, combat HUD, match-only minimap mount, crosshair, hit marker, and combat messages.
+- `src/ui/AppShell.ts` — mode/map/settings setup, pre-match summary, pause, mode-aware combat HUD, scoreboard, kill feed, results actions, and match-only minimap mount.
 - `src/ui/Minimap.ts` — map-data-driven live minimap using active navigation topology, player position/yaw, and only currently visible NPC markers.
 - `src/styles/main.css` — full-window layout and restrained neon-industrial visual styling.
 
 ## Current feature status
 
-The main menu opens a functional operative and loadout screen containing Vanguard, Volt, Bastion, Ghostline, and Circuit. Each character has a distinct procedural silhouette, two validated palettes, outfit/head variants, compatible accessory slots, articulated first-person arms, and lightweight movement/idle animation. The selected character is rendered in an isolated 3D preview, while a preview action displays the selected weapon skin through the same procedural weapon model family used in first-person. Primary and secondary weapons are validated against the existing seven-weapon catalog, `1`/`2` switch the configured slots, `Q` and the mouse wheel retain development access to the full catalog, and skins change materials only. The selected appearance drives first-person forearm accents and NPC archetype visual variants without changing collision, health, movement, AI, or weapon statistics. Preferences persist through schema-versioned local storage with safe fallback behavior. The grounded movement basis follows the player yaw hierarchy and has regression coverage across all eight cardinal/diagonal headings; pitch remains camera-only. Multiplayer, progression, crouching, and sliding remain deferred.
+The main menu now opens a real Phase 6 match setup flow. It presents Free-for-All, Team Deathmatch, Domination, Elimination/Survival, and Training Range, then applies the selected mode, map, difficulty, duration, score limit, NPC population, rounds, operative, and loadout to one authoritative match session. The player receives a real countdown before combat. Free-for-All uses independent NPC factions and a shared elimination board; Team Deathmatch uses local allied/enemy teams and authoritative friendly-fire blocking; Domination uses three map-authored control points with capture progress, contesting, passive score ticks, world markers, and minimap state; Survival uses one-life rounds and controlled intermissions; Practice uses the existing real weapon/target systems without a competitive result. All modes share the existing player, weapon, damage, NPC, map, minimap, and fixed-step loop systems. Match results contain actual scores and participant statistics, and Rematch/Change Setup/Main Menu clear transient state.
+
+The grounded movement basis follows the player yaw hierarchy and has regression coverage across all eight cardinal/diagonal headings; pitch remains camera-only. Multiplayer, progression, crouching, and sliding remain deferred.
 
 ## Current map catalog
 
@@ -143,6 +150,18 @@ Character, appearance, loadout, and skin preferences are stored under the versio
 
 Weapon definitions are immutable catalog data. Each equipped weapon gets an independent `WeaponRuntime`, while `WeaponController` owns input, firing cadence, pellet/burst behavior, switching, recoil, presentation, and hit resolution. `HitDetection` combines Three.js target-region intersections with a Rapier world ray query so walls block target damage. `DamageSystem` validates falloff and critical multipliers before calling the shared `Damageable` contract. Combat events drive hit markers, target feedback, HUD messages, audio, and practice statistics without allowing presentation effects to apply damage.
 
+## Phase 06 gameplay rules
+
+| Mode | Rules | Resolution |
+|---|---|---|
+| FREE-FOR-ALL | Player and NPCs are independent participants; NPCs select visible valid rivals and respawn when enabled. | First participant to the elimination limit, or highest score at timeout; equal scores draw. |
+| TEAM DEATHMATCH | Player-team and enemy-team NPCs use stable team IDs, allied bots avoid allied targets, and friendly fire is rejected by `DamageSystem`. | First team to the elimination limit, or higher team score at timeout; equal scores draw. |
+| DOMINATION | Three map-authored points capture over fixed simulation time, pause while contested, and award periodic team score while owned. | First team to the control score limit, or higher score at timeout; equal scores draw. |
+| ELIMINATION / SURVIVAL | Hostile NPCs are cleared in configured rounds with a countdown/intermission and no NPC respawns inside a round. | Clear every configured round for victory; player elimination causes defeat. |
+| TRAINING RANGE | No competitive NPC roster or score; existing map targets, weapons, pickups, movement, and reset controls remain available. | Practice ends when the player returns to setup/menu. |
+
+The match session is transient. It owns the countdown, active/intermission/paused/completed phases, fixed-step elapsed time, participants, team score, objective states, rounds, attribution, and results snapshot. Application state still owns menu, loading, playing, pause, and results presentation. A completed session rejects late score/elimination/objective events.
+
 Default controls:
 
 - `W/A/S/D`: move.
@@ -168,17 +187,23 @@ Starting weapon catalog:
 | BR-3 Triad | Burst | 16 × 3 | 0.07 s burst interval | 24 | 96 | 1.9 s | 110 | Three-round bursts with recovery |
 | E-77 Arc Lance | Energy | 30 | 0.22 s | 20 | 80 | 1.7 s | 120 | Luminous energy pulse behavior |
 
-## Upcoming implementation
+## Deferred scope
 
-- Phase 06: progression, XP, unlocks, achievements, and availability rules.
-- Later phases: game modes, audio, effects, polish, and optimization.
+- Progression, XP, unlocks, achievements, economy, ranked play, and availability rules remain deferred.
+- Multiplayer, backend services, network replication, and remote accounts remain out of scope.
+- Advanced movement such as crouching and sliding remains deferred.
 
 ## Manual controller validation
 
 1. Run `npm run dev` and open the Vite URL in a desktop browser with WebGL, Web Audio, and Pointer Lock support.
-2. Select any of MODERN CITY, INDUSTRIAL FACILITY, JUNGLE FRONTIER, SCI-FI FACILITY, or FANTASY RUINS and click the selected **Enter** button; accept the browser's pointer capture.
-3. Verify mouse-look, `W/A/S/D`, `Shift`, and `Space` in the arena.
-4. Fire the default rifle at a target and verify ammunition, tracer, muzzle flash, hit marker, health response, and damage feedback.
+2. Select each of the five modes, choose a map, review the live pre-match summary, and enter the match; accept browser pointer capture.
+3. Verify the countdown prevents movement/firing/AI damage until it reaches zero, then verify mouse-look, `W/A/S/D`, `Shift`, and `Space`.
+4. In Free-for-All, eliminate NPCs, observe the kill feed/score/timer, wait for a respawn, and verify timeout/score-limit results.
+5. In Team Deathmatch, verify allied/enemy team rows, allied NPC behavior, enemy targeting, team score, and no friendly-fire damage.
+6. In Domination, enter each control zone, observe capture progress, contesting, world rings/labels, passive score ticks, objective HUD, and minimap markers.
+7. In Survival, clear each round, verify intermission/countdown transitions, health/ammo reset behavior, and final victory/defeat results.
+8. In Training Range, fire the actual configured weapons at the map targets, collect ammo, and verify no competitive score/result is shown.
+9. Fire the default rifle at a target and verify ammunition, tracer, muzzle flash, hit marker, health response, and damage feedback.
 5. Aim at a target through a wall and verify that no target damage is applied.
 6. Use `R`, `1`, `2`, `Q`, and the mouse wheel to verify reloads, weapon switching, ammunition separation, and distinct weapon presentation.
 7. Test the shotgun critical/body regions, burst rifle cadence, sniper ADS, pistol semiautomatic behavior, and energy rifle effects.
@@ -186,11 +211,11 @@ Starting weapon catalog:
 9. Press `Escape` or use **Pause**, then resume through the pause menu and verify firing and pointer capture are restored without catch-up shots.
 10. Use the pause-menu sliders to change sensitivity and field of view; toggle head bob.
 11. Enable development diagnostics from the gameplay HUD and inspect player state, position, velocity, pointer lock, and renderer metrics.
-12. Observe the four map NPCs using different ranges and movement profiles; verify they stop detecting/shooting through arena walls.
-13. Shoot training targets and NPC bodies/heads, verify shared damage/defeat feedback, then wait for defeated NPCs to respawn.
-14. Verify the player can be damaged by NPC fire and can reset the complete encounter from the pause menu.
-15. Return to the menu, select a different map, and verify that the new collision, lighting, pickups, targets, NPC spawns, navigation, and cover are active.
-16. Repeat transitions through all five maps and confirm that old geometry, NPCs, paths, pickups, targets, and minimap topology do not remain active.
+12. Observe NPC perception, navigation, different ranges, and wall occlusion; verify hidden enemies do not appear on the minimap.
+13. Shoot NPC bodies/heads, verify shared damage/defeat feedback, kill attribution, score exactly once, and supported respawns.
+14. Verify player defeat, respawn-enabled modes, one-life Survival defeat, and pause/resume freezing of NPCs, objectives, timers, and damage.
+15. Return to setup, select a different map, and verify new collision, lighting, pickups, objectives, targets, NPC spawns, navigation, cover, and minimap data.
+16. Repeat transitions through all five maps and confirm old geometry, NPCs, paths, pickups, objectives, targets, timers, scores, and markers do not remain active.
 17. Open **Configure Character & Loadout**, select each operative, change palettes and variants, and inspect the isolated 3D preview.
 18. Configure a primary and secondary weapon, apply different skins, preview a weapon, save the configuration, and verify the actual first-person model and slot switching.
 19. Reload the browser and verify the saved operative, appearance, weapons, and skins are restored.
@@ -204,6 +229,8 @@ Starting weapon catalog:
 - The five procedural maps use explicit simplified box colliders aligned to their solid structures; arbitrary mesh collision conversion is not implemented yet.
 - The current map transition path is synchronous because all Phase 04 geometry is procedural and locally generated. It still exposes explicit lifecycle states and rejects re-entrant transitions; asynchronous asset cancellation is deferred until external assets are introduced.
 - Browser integration tests for WebGL rendering, Pointer Lock, visual traversal, and audio were not run in the development environment because Chromium/Playwright is unavailable.
+- Phase 6 match preferences are currently session-local; character, appearance, loadout, skin, sensitivity, field of view, and head-bob preferences retain the existing persistence behavior.
+- Objective bot routing attaches validated ground approach nodes to the authored map navigation; complex elevated traversal remains dependent on each map's authored graph and needs manual visual traversal.
 - Character and weapon previews are procedural local geometry; no external rigged character assets or full skeletal animation library is required.
 - Character customization currently changes palettes, outfit/head variants, supported accessories, and first-person cosmetic accents. It does not change gameplay statistics or collision dimensions.
 - Save preferences use browser local storage when available; storage failures preserve the active configuration for the current session.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { NPCDebugSnapshot } from '../ai/NPCController';
 import type { MapInstance } from '../world/MapInstance';
+import type { ObjectiveMinimapState } from '../match/ObjectiveManager';
 
 export function worldToMinimap(position: THREE.Vector3, dimensions: readonly [number, number], size = 208, inset = 13): readonly [number, number] {
   const [width, depth] = dimensions;
@@ -44,9 +45,9 @@ export class Minimap {
     this.canvas.hidden = !visible;
   }
 
-  public update(playerPosition: THREE.Vector3, playerYaw: number, npcs: readonly NPCDebugSnapshot[] = []): void {
+  public update(playerPosition: THREE.Vector3, playerYaw: number, npcs: readonly NPCDebugSnapshot[] = [], objectives: readonly ObjectiveMinimapState[] = []): void {
     if (!this.visible || !this.map) return;
-    this.draw(playerPosition, playerYaw, npcs);
+    this.draw(playerPosition, playerYaw, npcs, objectives);
   }
 
   public dispose(): void {
@@ -54,7 +55,7 @@ export class Minimap {
     this.map = null;
   }
 
-  private draw(playerPosition: THREE.Vector3 | null, playerYaw: number, npcs: readonly NPCDebugSnapshot[]): void {
+  private draw(playerPosition: THREE.Vector3 | null, playerYaw: number, npcs: readonly NPCDebugSnapshot[], objectives: readonly ObjectiveMinimapState[] = []): void {
     const context = this.context;
     if (!context) return;
     const ratio = this.pixelRatio;
@@ -110,6 +111,31 @@ export class Minimap {
         context.stroke();
       }
     }
+
+    for (const objective of objectives) {
+      const [x, y] = toCanvas(objective.position);
+      context.fillStyle = objective.contested
+        ? '#ffca67'
+        : objective.owner === 'player' ? '#63eaff'
+          : objective.owner === 'enemy' ? '#ff766d' : '#9eeaf4';
+      context.strokeStyle = '#06121d';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.arc(x, y, 5, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.fillStyle = '#06121d';
+      context.font = 'bold 7px ui-monospace, monospace';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(objective.displayName.slice(0, 1), x, y + 0.5);
+      if (objective.capturingTeam && !objective.contested && objective.progress > 0 && objective.progress < 1) {
+        context.strokeStyle = objective.capturingTeam === 'player' ? '#63eaff' : '#ff766d';
+        context.beginPath();
+        context.arc(x, y, 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * objective.progress);
+        context.stroke();
+      }
+    }
     for (const node of this.map.navigationGraph.getAllNodes()) {
       const [x, y] = toCanvas(node.position);
       const isCover = node.tags.includes('cover') || node.tags.includes('interior');
@@ -120,7 +146,7 @@ export class Minimap {
     for (const npc of npcs) {
       if (!npc.visible || npc.health <= 0) continue;
       const [x, y] = toCanvas(npc.position);
-      context.fillStyle = '#ff766d';
+      context.fillStyle = npc.teamId === 'player' ? '#63eaff' : '#ff766d';
       context.beginPath();
       context.arc(x, y, 3, 0, Math.PI * 2);
       context.fill();

@@ -39,4 +39,17 @@ describe('DamageSystem', () => {
     expect(() => damage.applyWeaponHit(target, weapon, 'body', 10, new THREE.Vector3(), new THREE.Vector3(0, 0, -1), 2)).not.toThrow();
     target.dispose();
   });
+
+  it('rejects same-team damage before calling the target', () => {
+    const events = new CombatEventBus();
+    const damage = new DamageSystem(events);
+    const source = { entityId: 'ally-a', teamId: 'player', root: new THREE.Group(), maxHealth: 100, health: 100, isDefeated: false, getHitRegions: () => [], reset: () => undefined, update: () => undefined, receiveDamage: () => { throw new Error('source damaged'); } };
+    let received = 0;
+    const target = { entityId: 'ally-b', teamId: 'player', root: new THREE.Group(), maxHealth: 100, health: 100, isDefeated: false, getHitRegions: () => [], reset: () => undefined, update: () => undefined, receiveDamage: () => { received += 1; return { applied: true, damage: 10, critical: false, defeated: false, targetId: 'ally-b', impactPoint: new THREE.Vector3() }; } };
+    damage.register(source);
+    damage.register(target);
+    const result = damage.applyWeaponHit(target, WEAPON_DEFINITIONS.find((entry) => entry.id === 'pistol')!, 'body', 1, new THREE.Vector3(), new THREE.Vector3(0, 0, -1), 0, 1, 'ally-a');
+    expect(result.applied).toBe(false);
+    expect(received).toBe(0);
+  });
 });

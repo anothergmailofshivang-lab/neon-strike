@@ -167,6 +167,23 @@ export class CollisionWorld {
     return this.actors.get(actorId)?.collider ?? null;
   }
 
+  public setActorEnabled(id: string, enabled: boolean): void {
+    this.actors.get(id)?.collider.setEnabled(enabled);
+    this.world.updateSceneQueries();
+  }
+
+  /** Static capsule clearance, shared by navigation and spawn validation. */
+  public isCapsuleClear(position: { x: number; y: number; z: number }, radius = 0.58, height = 2.25): boolean {
+    this.world.updateSceneQueries();
+    return this.world.intersectionWithShape(
+      { x: position.x, y: position.y + height / 2 + 0.05, z: position.z },
+      { x: 0, y: 0, z: 0, w: 1 },
+      new this.rapier.Capsule(height / 2 - radius, radius),
+      undefined, undefined, undefined, undefined,
+      (collider) => collider.parent()?.isFixed() ?? true,
+    ) === null;
+  }
+
   public replaceStaticColliders(definitions: readonly StaticBoxColliderDefinition[]): void {
     if (this.disposed) {
       return;

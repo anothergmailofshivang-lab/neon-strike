@@ -70,6 +70,7 @@ export class WeaponController {
   }
 
   public setActive(active: boolean): void {
+    if (this.active === active) return;
     this.active = active;
     this.presentation.setCharacterVisible(active);
     if (!active) {
@@ -310,6 +311,7 @@ export class WeaponController {
       * (playerMovement.horizontalSpeed > 0.25 ? definition.spread.movingMultiplier : 1)
       * (aiming ? definition.aimDownSights.spreadMultiplier : 1);
     const pelletCount = definition.pellets?.count ?? 1;
+    this.events.emit({ type: 'weapon-fired', weapon: definition, shotCount: pelletCount, sourceId: 'player' });
     const pelletSpread = spread * (definition.pellets?.spreadMultiplier ?? 1);
     let firstHit: ShotHit | null = null;
     for (let pellet = 0; pellet < pelletCount; pellet += 1) {
@@ -342,7 +344,6 @@ export class WeaponController {
     this.callbacks.onRecoil(recoil.yaw, recoil.pitch);
     this.presentation.fire(definition);
     this.audio.playShot(definition);
-    this.events.emit({ type: 'weapon-fired', weapon: definition, shotCount: pelletCount });
     if (firstHit?.kind === 'world') {
       this.events.emit({
         type: 'shot-world-impact',

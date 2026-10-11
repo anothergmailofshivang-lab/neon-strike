@@ -40,6 +40,11 @@ import { createWeaponCatalog } from '../weapons/WeaponDefinitions';
 import { getWeaponDefinition } from '../weapons/WeaponDefinitions';
 import type { PlayerLoadout } from '../loadouts/LoadoutTypes';
 import { Minimap } from '../ui/Minimap';
+import { listGameModes, createDefaultMatchSettings, validateMatchSettings } from '../match/GameModeDefinitions';
+import type { GameModeId, TeamId } from '../match/MatchTypes';
+import { MatchSession } from '../match/MatchSession';
+import { ObjectiveManager } from '../match/ObjectiveManager';
+import * as THREE from 'three';
 
 export class GameApp {
   private readonly root: HTMLElement;
@@ -72,6 +77,7 @@ export class GameApp {
   private resizeObserver: ResizeObserver | null = null;
   private unsubscribeState: (() => void) | null = null;
   private unsubscribeCombat: (() => void) | null = null;
+  private unsubscribeMatch: (() => void) | null = null;
   private started = false;
   private shuttingDown = false;
   private readonly playerSettingsStore = new PlayerSettingsStore();
@@ -83,6 +89,10 @@ export class GameApp {
   private selectedMapId = 'modern-city';
   private characterPreview: CharacterPreview | null = null;
   private minimap: Minimap | null = null;
+  private matchSession: MatchSession | null = null;
+  private objectiveManager: ObjectiveManager | null = null;
+  private matchSettings = createDefaultMatchSettings('practice', 'modern-city');
+  private playerRespawnRemaining = 0;
 
   public constructor(root: HTMLElement, config = createGameConfig()) {
     this.root = root;
@@ -106,6 +116,16 @@ export class GameApp {
       onFieldOfViewChange: (value) => this.setFieldOfView(value),
       onHeadBobChange: (enabled) => this.setHeadBobEnabled(enabled),
       onSelectMap: (mapId) => this.selectMap(mapId),
+      onSelectMode: (modeId) => this.selectMode(modeId),
+      onDifficultyChange: (difficulty) => this.updateMatchSettings({ difficulty: difficulty as typeof this.matchSettings.difficulty }),
+      onMatchDurationChange: (value) => this.updateMatchSettings({ durationSeconds: value }),
+      onScoreLimitChange: (value) => this.updateMatchSettings({ scoreLimit: value }),
+      onNpcCountChange: (value) => this.updateMatchSettings({ npcCount: value }),
+      onRoundsChange: (value) => this.updateMatchSettings({ rounds: value }),
+      onToggleScoreboard: () => this.shell.toggleScoreboard(),
+      onRematch: () => this.rematch(),
+      onResultsSetup: () => this.returnFromResultsToSetup(),
+      onResultsMenu: () => this.returnFromResultsToSetup(),
       onOpenCustomization: () => this.openCustomization(),
       onCloseCustomization: () => this.closeCustomization(),
       onSelectCharacter: (id) => this.selectCharacter(id),
@@ -120,10 +140,11 @@ export class GameApp {
       onResetAppearance: () => this.changeAppearance(() => this.characterSelection.resetAppearance()),
       onSaveCustomization: () => this.saveCustomization(),
       showDiagnosticsControl: this.config.development,
-    }, this.mapRegistry.list(), this.characterRegistry.list(), this.loadoutManager.weaponCatalog, this.weaponSkinRegistry.list());
+    }, this.mapRegistry.list(), this.characterRegistry.list(), this.loadoutManager.weaponCatalog, this.weaponSkinRegistry.list(), listGameModes());
     this.shell.setState(this.stateMachine.state);
     this.shell.setSettings(this.playerSettings);
     this.shell.setMapSelection(this.selectedMapId);
+    this.shell.setMatchSettings(this.matchSettings);
     this.shell.setCustomizationState(this.characterSelection.definition, this.characterSelection.appearance, this.loadoutManager.loadout);
   }
 
@@ -163,6 +184,7 @@ export class GameApp {
     this.npcManager?.dispose();
     this.mapManager?.dispose();
     this.unsubscribeCombat?.();
+    this.unsubscribeMatch?.();
     this.combatEvents?.clear();
     this.collisionWorld?.dispose();
     this.resizeObserver?.disconnect();
@@ -190,6 +212,9 @@ export class GameApp {
     this.renderer = null;
     this.characterPreview = null;
     this.minimap = null;
+    this.objectiveManager?.dispose();
+    this.objectiveManager = null;
+    this.matchSession = null;
   }
 
   private async initializeSystems(): Promise<void> {
@@ -229,6 +254,7 @@ export class GameApp {
       this.combatEvents,
       this.config.npcDifficulty,
     );
+    this.npcManager.configureRoster({ modeId: 'practice', count: 0, respawnsEnabled: false });
     this.npcManager.setMap(initialMap);
     this.targetRange = new TargetRange(this.damageSystem, this.targetRegistry, initialMap.trainingTargets);
     this.sceneManager.scene.add(this.targetRange.group);
@@ -252,6 +278,21 @@ export class GameApp {
     this.ammoPickups = new AmmoPickupSystem(initialMap.pickups);
     this.sceneManager.scene.add(this.ammoPickups.group);
     this.unsubscribeCombat = this.combatEvents.subscribe((event) => {
+      if (this.matchSession) {
+        if (event.type === 'weapon-fired' && event.sourceId) {
+          this.matchSession.recordShot(event.sourceId, event.shotCount);
+        } else if (event.type === 'damage-applied') {
+          this.matchSession.recordDamage(event.request.sourceId, event.request.targetId, event.result.damage);
+        } else if (event.type === 'target-defeated') {
+          if (this.matchSession.recordElimination(event.request.sourceId, event.result.targetId)) {
+            const sourceName = event.request.sourceId ? this.matchSession.getParticipant(event.request.sourceId)?.displayName ?? event.request.sourceId : 'ENVIRONMENT';
+            const targetName = this.matchSession.getParticipant(event.result.targetId)?.displayName ?? event.result.targetId;
+            this.shell.addKillFeedMessage(`${sourceName} eliminated ${targetName}`);
+            if (event.result.targetId === 'player' && this.matchSettings.respawnsEnabled) this.playerRespawnRemaining = 3;
+            if (event.result.targetId === 'player') this.collisionWorld?.setActorEnabled('player', false);
+          }
+        }
+      }
       if (event.type === 'target-defeated') {
         this.shell.showCombatMessage(event.result.targetId === 'player'
           ? 'Player defeated — reset the practice encounter'
@@ -316,6 +357,9 @@ export class GameApp {
       this.npcManager?.setActive(nextState === ApplicationState.PLAYING);
       this.characterPreview?.setVisible(false);
       this.minimap?.setVisible(nextState === ApplicationState.PLAYING);
+      this.objectiveManager?.group && (this.objectiveManager.group.visible = nextState === ApplicationState.PLAYING);
+      this.syncMatchSimulationActivity();
+      if (nextState === ApplicationState.MATCH_RESULTS && this.matchSession) this.shell.showResults(this.matchSession.snapshot());
     });
 
     this.lifecycle = new AppLifecycle(document, window, {
@@ -341,13 +385,33 @@ export class GameApp {
         return;
       }
       try {
-        const map = this.mapManager?.load(this.selectedMapId);
+        this.matchSettings = validateMatchSettings({ ...this.matchSettings, mapId: this.selectedMapId }, this.mapRegistry.list().map((definition) => definition.id));
+        const map = this.mapManager?.load(this.matchSettings.mapId);
         if (!map) throw new Error('Map manager is not ready.');
+        this.matchSession = new MatchSession(this.matchSettings);
+        this.damageSystem?.setPolicy((sourceId, targetId) => {
+          const source = this.matchSession?.getParticipant(sourceId);
+          const target = this.matchSession?.getParticipant(targetId);
+          return !source || !target || source.teamId !== target.teamId;
+        });
+        this.matchSession.addParticipant({ id: 'player', displayName: 'PLAYER', teamId: 'player', kind: 'player' });
+        this.objectiveManager = new ObjectiveManager(this.matchSession);
+        this.objectiveManager.setMap(map);
+        this.npcManager?.setObjectiveDestinations(this.objectiveManager.getMinimapStates().map((objective) => objective.position));
+        this.sceneManager?.scene.add(this.objectiveManager.group);
+        this.npcManager?.setDifficulty(this.matchSettings.difficulty);
+        this.npcManager?.configureRoster({ modeId: this.matchSettings.modeId, count: this.matchSettings.npcCount, respawnsEnabled: this.matchSettings.respawnsEnabled });
         this.activateMapEncounter(map);
+        for (const npc of this.npcManager?.getSnapshots() ?? []) {
+          this.matchSession.addParticipant({ id: npc.id, displayName: npc.archetype.toUpperCase(), teamId: npc.teamId as TeamId, kind: 'npc', archetype: npc.archetype });
+        }
+        this.unsubscribeMatch = this.matchSession.subscribe((event) => this.handleMatchEvent(event));
+        this.matchSession.start();
       } catch (error) {
         const message = reportError(`Unable to load ${this.selectedMapId}`, error);
         this.stateMachine.transitionTo(ApplicationState.MAIN_MENU);
         this.shell.setMapLoadStatus(`${message} Select another map or retry.`, true);
+        this.clearMatchRuntime();
         return;
       }
       this.input?.reset();
@@ -368,6 +432,7 @@ export class GameApp {
 
   private pause(): void {
     if (this.stateMachine.state === ApplicationState.PLAYING) {
+      this.matchSession?.setPaused(true);
       this.stateMachine.transitionTo(ApplicationState.PAUSED);
       this.player?.exitPointerLock();
       this.weapons?.setActive(false);
@@ -392,6 +457,7 @@ export class GameApp {
       this.stateMachine.state === ApplicationState.PLAYING
       || this.stateMachine.state === ApplicationState.PAUSED
       || this.stateMachine.state === ApplicationState.LOADING_MATCH
+      || this.stateMachine.state === ApplicationState.MATCH_RESULTS
     ) {
       this.resumePending = false;
       this.stateMachine.transitionTo(ApplicationState.MAIN_MENU);
@@ -407,7 +473,19 @@ export class GameApp {
       this.ammoPickups?.setDefinitions([]);
       this.mapManager?.unload();
       this.minimap?.setMap(null);
+      this.clearMatchRuntime();
     }
+  }
+
+  private rematch(): void {
+    if (this.stateMachine.state !== ApplicationState.MATCH_RESULTS) return;
+    this.returnFromResultsToSetup(true);
+  }
+
+  private returnFromResultsToSetup(startImmediately = false): void {
+    if (this.stateMachine.state !== ApplicationState.MATCH_RESULTS) return;
+    this.clearMatchRuntime();
+    if (this.stateMachine.transitionTo(ApplicationState.MAIN_MENU) && startImmediately) this.startPractice();
   }
 
   private resetPractice(): void {
@@ -415,7 +493,7 @@ export class GameApp {
       return;
     }
     const playerSpawn = this.mapManager?.current?.playerSpawns[0];
-    this.player?.reset(playerSpawn ? [playerSpawn.position.x, playerSpawn.position.y, playerSpawn.position.z] : undefined);
+    this.player?.reset(playerSpawn ? [playerSpawn.position.x, playerSpawn.position.y, playerSpawn.position.z] : undefined, playerSpawn?.yaw ?? 0);
     this.playerHealth?.reset();
     this.npcManager?.reset();
     this.targetRange?.reset();
@@ -429,7 +507,20 @@ export class GameApp {
       return;
     }
     this.selectedMapId = mapId;
+    this.matchSettings = { ...this.matchSettings, mapId };
     this.shell.setMapSelection(mapId);
+  }
+
+  private selectMode(modeId: GameModeId): void {
+    if (this.stateMachine.state !== ApplicationState.MAIN_MENU) return;
+    this.matchSettings = { ...createDefaultMatchSettings(modeId, this.selectedMapId), difficulty: this.matchSettings.difficulty };
+    this.shell.setMatchSettings(this.matchSettings);
+  }
+
+  private updateMatchSettings(changes: Partial<typeof this.matchSettings>): void {
+    if (this.stateMachine.state !== ApplicationState.MAIN_MENU) return;
+    this.matchSettings = validateMatchSettings({ ...this.matchSettings, ...changes }, this.mapRegistry.list().map((definition) => definition.id));
+    this.shell.setMatchSettings(this.matchSettings);
   }
 
   private openCustomization(): void {
@@ -501,13 +592,14 @@ export class GameApp {
     if (!playerSpawn) {
       throw new Error(`Map ${map.definition.id} has no player spawn.`);
     }
-    this.player?.reset([playerSpawn.position.x, playerSpawn.position.y, playerSpawn.position.z]);
+    this.player?.reset([playerSpawn.position.x, playerSpawn.position.y, playerSpawn.position.z], playerSpawn.yaw);
+    this.playerRespawnRemaining = 0;
     this.playerHealth?.reset();
     this.npcManager?.setMap(map);
     this.npcManager?.reset();
     this.weapons?.applyLoadout(this.loadoutManager.loadout, this.weaponSkinRegistry);
     this.applyVisualConfiguration();
-    this.targetRange?.setDefinitions(map.trainingTargets);
+    this.targetRange?.setDefinitions(this.matchSettings.modeId === 'practice' ? map.trainingTargets : []);
     this.ammoPickups?.setDefinitions(map.pickups);
     this.ammoPickups?.reset();
     this.minimap?.setMap(map);
@@ -522,12 +614,39 @@ export class GameApp {
       this.pause();
       return;
     }
+    this.matchSession?.update(_deltaSeconds);
+    if (this.matchSession?.phase === 'active' && this.playerHealth?.isDefeated && this.matchSettings.respawnsEnabled) {
+      this.playerRespawnRemaining = Math.max(this.playerRespawnRemaining - Math.min(Math.max(_deltaSeconds, 0), 0.25), 0);
+      if (this.playerRespawnRemaining === 0) {
+        const spawn = this.mapManager?.current?.playerSpawns[0];
+        this.player?.reset(spawn ? [spawn.position.x, spawn.position.y, spawn.position.z] : undefined, spawn?.yaw ?? 0);
+        this.playerHealth.reset();
+        this.collisionWorld?.setActorEnabled('player', true);
+        this.matchSession.respawnParticipant('player');
+        this.weapons?.reset();
+      }
+    }
+    if (this.matchSession?.phase === 'intermission' && this.matchSession.intermissionSecondsRemaining <= 0) {
+      this.npcManager?.reset();
+      this.matchSession.resetRoundParticipants();
+      this.matchSession.startNextRound();
+    }
+    this.syncMatchSimulationActivity();
+    this.shell.setMatchSnapshot(this.matchSession?.snapshot() ?? createDefaultMatchSnapshot());
+    if (this.matchSession?.phase !== 'active') return;
     this.player?.update(_deltaSeconds);
     const playerSnapshot = this.player?.getSnapshot();
     const playerPosition = playerSnapshot?.position;
     if (playerPosition) {
       this.npcManager?.update(_deltaSeconds, playerPosition);
-      this.minimap?.update(playerPosition, playerSnapshot?.yaw ?? 0, this.npcManager?.getSnapshots() ?? []);
+      for (const npc of this.npcManager?.getSnapshots() ?? []) {
+        if (npc.health > 0) this.matchSession?.respawnParticipant(npc.id);
+      }
+      this.objectiveManager?.update(_deltaSeconds, [
+        { id: 'player', teamId: 'player', alive: !this.playerHealth?.isDefeated, position: playerPosition },
+        ...(this.npcManager?.getParticipantPositions() ?? []).map((participant) => ({ ...participant, teamId: participant.teamId as 'player' | 'enemy' })),
+      ]);
+      this.minimap?.update(playerPosition, playerSnapshot?.yaw ?? 0, this.getMinimapNPCs(playerPosition, playerSnapshot?.yaw ?? 0), this.objectiveManager?.getMinimapStates() ?? []);
     }
     this.targetRange?.update(_deltaSeconds);
     this.weapons?.update(_deltaSeconds, this.player?.isPointerLocked ?? false);
@@ -582,6 +701,7 @@ export class GameApp {
         this.stateMachine.transitionTo(ApplicationState.PLAYING);
       } else if (this.stateMachine.state === ApplicationState.PAUSED && this.resumePending) {
         this.resumePending = false;
+        this.matchSession?.setPaused(false);
         this.stateMachine.transitionTo(ApplicationState.PLAYING);
       }
       return;
@@ -645,4 +765,64 @@ export class GameApp {
       activeElement.blur();
     }
   }
+
+  private syncMatchSimulationActivity(): void {
+    const active = this.stateMachine.state === ApplicationState.PLAYING && this.matchSession?.phase === 'active';
+    const playerActive = Boolean(active) && !Boolean(this.playerHealth?.isDefeated);
+    this.player?.setActive(playerActive);
+    this.weapons?.setActive(playerActive);
+    this.npcManager?.setActive(Boolean(active));
+  }
+
+  private getMinimapNPCs(playerPosition: THREE.Vector3, playerYaw: number): readonly import('../ai/NPCController').NPCDebugSnapshot[] {
+    const snapshots = this.npcManager?.getSnapshots() ?? [];
+    const forward = new THREE.Vector3(-Math.sin(playerYaw), 0, -Math.cos(playerYaw));
+    return snapshots.map((snapshot) => {
+      if (snapshot.teamId === 'player') return { ...snapshot, visible: snapshot.health > 0 };
+      const direction = snapshot.position.clone().sub(playerPosition).setY(0);
+      const distance = direction.length();
+      const inView = distance <= 42 && distance > 0.1 && forward.dot(direction.normalize()) >= Math.cos(Math.PI * 0.62);
+      const rayDirection = snapshot.position.clone().add(new THREE.Vector3(0, 1.1, 0)).sub(playerPosition.clone().add(new THREE.Vector3(0, 1.35, 0))).normalize();
+      const obstruction = inView ? this.collisionWorld?.raycastStaticWorld(
+        { x: playerPosition.x, y: playerPosition.y + 1.35, z: playerPosition.z },
+        { x: rayDirection.x, y: rayDirection.y, z: rayDirection.z },
+        distance,
+      ) : null;
+      return { ...snapshot, visible: snapshot.health > 0 && inView && obstruction === null };
+    });
+  }
+
+  private handleMatchEvent(event: import('../match/MatchTypes').MatchEvent): void {
+    if (event.type === 'match-completed') {
+      this.syncMatchSimulationActivity();
+      this.player?.exitPointerLock();
+      this.stateMachine.transitionTo(ApplicationState.MATCH_RESULTS);
+    } else if (event.type === 'score-changed') {
+      this.shell.showCombatMessage(`${event.teamId.toUpperCase()} +${event.amount} ${event.reason}`);
+    } else if (event.type === 'objective-changed') {
+      this.shell.setObjectiveStates(this.matchSession?.snapshot().objectives ?? []);
+    }
+  }
+
+  private clearMatchRuntime(): void {
+    this.unsubscribeMatch?.();
+    this.unsubscribeMatch = null;
+    this.objectiveManager?.dispose();
+    this.objectiveManager = null;
+    this.matchSession = null;
+    this.damageSystem?.setPolicy(null);
+    this.playerRespawnRemaining = 0;
+    this.npcManager?.configureRoster({ modeId: 'practice', count: 0, respawnsEnabled: false });
+    this.npcManager?.clearMap();
+    this.targetRange?.setDefinitions([]);
+    this.ammoPickups?.setDefinitions([]);
+  }
+}
+
+function createDefaultMatchSnapshot(): import('../match/MatchTypes').MatchSnapshot {
+  const settings = createDefaultMatchSettings('practice', 'modern-city');
+  return {
+    sessionId: 'none', settings, phase: 'preparing', elapsedSeconds: 0, remainingSeconds: null, countdownRemaining: 0, round: 1, roundCount: 1,
+    teamScores: {}, participants: [], objectives: [], outcome: null, winnerTeamId: null, resolutionReason: null,
+  };
 }

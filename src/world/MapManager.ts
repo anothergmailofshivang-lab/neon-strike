@@ -4,6 +4,7 @@ import { MapInstance } from './MapInstance';
 import { MapLifecycleState, type MapDefinition } from './MapDefinition';
 import { MapRegistry } from './MapRegistry';
 import { validateMapInstance, validateMapSpawns, type MapValidationResult } from './MapValidation';
+import { buildWalkableNavigation } from '../navigation/WalkableNavigation';
 
 export class MapManager {
   private readonly scene: THREE.Scene;
@@ -60,6 +61,7 @@ export class MapManager {
         throw new Error(`Map ${mapId} failed structural validation: ${this.lastValidation.errors.join('; ')}`);
       }
       this.collisionWorld.replaceStaticColliders(nextMap.collisionDefinitions);
+      nextMap.navigationGraph = buildWalkableNavigation(nextMap, this.collisionWorld);
       this.lifecycleState = MapLifecycleState.VALIDATING;
       this.lastValidation = validateMapSpawns(nextMap, this.collisionWorld);
       if (!this.lastValidation.valid) {

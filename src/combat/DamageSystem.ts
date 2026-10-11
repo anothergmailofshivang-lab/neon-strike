@@ -8,6 +8,11 @@ export class DamageSystem {
   private readonly eventBus: CombatEventBus;
   private readonly targets = new Map<string, Damageable>();
   private sequence = 0;
+  private policy: ((sourceId: string, targetId: string) => boolean) | null = null;
+
+  public setPolicy(policy: ((sourceId: string, targetId: string) => boolean) | null): void { this.policy = policy; }
+
+  public getTargets(): readonly Damageable[] { return [...this.targets.values()]; }
 
   public constructor(eventBus: CombatEventBus) {
     this.eventBus = eventBus;
@@ -39,7 +44,8 @@ export class DamageSystem {
     regionMultiplier = hitRegion === 'critical' ? weapon.criticalHitMultiplier : 1,
     sourceId = 'player',
   ): DamageResult {
-    if (!this.targets.has(target.entityId) || target.isDefeated) {
+    const source = this.targets.get(sourceId);
+    if (this.targets.get(target.entityId) !== target || target.isDefeated || this.policy?.(sourceId, target.entityId) === false || (source && source.entityId !== target.entityId && source.teamId && source.teamId === target.teamId)) {
       return {
         applied: false,
         damage: 0,
@@ -72,7 +78,7 @@ export class DamageSystem {
     if (result.critical) {
       this.eventBus.emit({ type: 'critical-hit', request, result });
     }
-    if (result.defeated) {
+    if (result.applied && result.defeated) {
       this.eventBus.emit({ type: 'target-defeated', request, result });
     }
     return result;

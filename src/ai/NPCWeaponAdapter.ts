@@ -12,13 +12,13 @@ export class NPCWeaponAdapter {
   private readonly damageSystem: DamageSystem;
   private readonly eventBus: CombatEventBus;
   private readonly sourceId: string;
-  private readonly target: Damageable;
+  private target: Damageable | null;
   private simulationTime = 0;
 
   public constructor(
     definition: WeaponDefinition,
     sourceId: string,
-    target: Damageable,
+    target: Damageable | null,
     collisionWorld: CollisionWorld,
     damageSystem: DamageSystem,
     eventBus: CombatEventBus,
@@ -29,6 +29,10 @@ export class NPCWeaponAdapter {
     this.collisionWorld = collisionWorld;
     this.damageSystem = damageSystem;
     this.eventBus = eventBus;
+  }
+
+  public setTarget(target: Damageable | null): void {
+    this.target = target;
   }
 
   public update(deltaSeconds: number): void {
@@ -46,6 +50,10 @@ export class NPCWeaponAdapter {
       { x: shotDirection.x, y: shotDirection.y, z: shotDirection.z },
       this.runtime.definition.range,
     );
+    if (!this.target || this.target.isDefeated) {
+      this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
+      return true;
+    }
     const targetPosition = this.target.root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0));
     const toTarget = targetPosition.clone().sub(origin);
     const distance = toTarget.length();
@@ -70,10 +78,10 @@ export class NPCWeaponAdapter {
         1,
         this.sourceId,
       );
-      this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1 });
+      this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
       return result.applied;
     }
-    this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1 });
+    this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
     return true;
   }
 

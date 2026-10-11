@@ -88,7 +88,7 @@ export function buildModernCity(): MapBuildOutput {
   ]);
   return createOutput(factory, graph, cover,
     [spawn('city-player-plaza', [0, 0, 21], Math.PI, ['player', 'plaza'])],
-    [spawn('city-scout-west', [-9, 0, 15], 0, ['npc', 'west'], 'scout'), spawn('city-rifleman-east', [9, 0, 15], 0, ['npc', 'east'], 'rifleman'), spawn('city-heavy-north', [-9, 0, -17], Math.PI, ['npc', 'north'], 'heavy'), spawn('city-sniper-roof', [9, 0, -17], Math.PI, ['npc', 'north'], 'sniper')],
+    [spawn('city-scout-west', [-9, 0, 15], 0, ['npc', 'west'], 'scout'), spawn('city-rifleman-east', [12, 0, 20], Math.PI, ['npc', 'east'], 'rifleman'), spawn('city-heavy-north', [-9, 0, -17], Math.PI, ['npc', 'north'], 'heavy'), spawn('city-sniper-roof', [9, 0, -17], Math.PI, ['npc', 'north'], 'sniper')],
     [{ id: 'city-ammo-park', type: 'ammo', position: [-12, 0.9, 4], amount: 30, respawnSeconds: 8 }, { id: 'city-ammo-alley', type: 'ammo', position: [-9, 0.9, -13], amount: 30, respawnSeconds: 8 }, { id: 'city-ammo-house', type: 'ammo', position: [12, 0.9, 13], amount: 45, respawnSeconds: 8 }],
     [{ id: 'city-target-plaza', position: [0, 0, 5], maxHealth: 100, respawnDelay: 3, accentColor: 0x46dff3 }, { id: 'city-target-park', position: [-12, 0, 4], maxHealth: 120, respawnDelay: 4, accentColor: 0x79ff9d }, { id: 'city-target-north', position: [0, 0, -21], maxHealth: 100, respawnDelay: 3, accentColor: 0xffad55 }],
   );

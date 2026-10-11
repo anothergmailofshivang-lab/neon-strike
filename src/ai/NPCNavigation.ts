@@ -28,11 +28,11 @@ export class NPCNavigation {
     this.queryCount += 1;
     this.path = this.pathfinder.findPath(this.graph, startNode.id, goalNode.id);
     this.lastGoal = goalKey;
-    this.nextIndex = this.path && this.path.nodeIds.length > 1 ? 1 : 0;
+    this.nextIndex = 0;
     return this.path !== null;
   }
 
-  public getNextWaypoint(current: THREE.Vector3, arrivalDistance = 1.1): THREE.Vector3 | null {
+  public getNextWaypoint(current: THREE.Vector3, arrivalDistance = 0.35): THREE.Vector3 | null {
     if (!this.path) {
       return null;
     }

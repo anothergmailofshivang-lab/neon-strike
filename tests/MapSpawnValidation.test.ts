@@ -21,6 +21,14 @@ describe('map spawn validation', () => {
         );
         expect(hit, `${definition.id}:${spawn.id}`).not.toBeNull();
       }
+      for (const point of map.controlPoints) {
+        const hit = collision.raycastStaticWorld(
+          { x: point.position[0], y: point.position[1] + 8, z: point.position[2] },
+          { x: 0, y: -1, z: 0 },
+          20,
+        );
+        expect(hit, `${definition.id}:${point.id}`).not.toBeNull();
+      }
     }
 
     manager.dispose();

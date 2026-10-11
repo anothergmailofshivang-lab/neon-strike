@@ -43,7 +43,7 @@ export function buildNeonYard(): MapBuildOutput {
     ['east-lane', [13, 0, 13], ['lane', 'cover']], ['west-mid', [-13, 0, 3], ['cover']],
     ['east-mid', [13, 0, 3], ['cover']], ['north-west', [-13, 0, -12], ['flank', 'cover']],
     ['north-east', [13, 0, -12], ['flank', 'cover']], ['north', [0, 0, -18], ['sniper']],
-    ['upper-ramp', [-14, 2.2, 8], ['ramp']], ['upper-platform', [-14, 3.9, 12], ['upper', 'cover']],
+    ['upper-ramp', [-14, 2.2, 8], ['ramp']], ['upper-platform', [-14, 4, 12], ['upper', 'cover']],
   ], [
     ['south', 'west-lane'], ['south', 'east-lane'], ['west-lane', 'west-mid'], ['east-lane', 'east-mid'],
     ['west-mid', 'north-west'], ['east-mid', 'north-east'], ['north-west', 'north'], ['north-east', 'north'],
@@ -52,14 +52,14 @@ export function buildNeonYard(): MapBuildOutput {
   const cover = createCover([
     ['west-barrier', [-13, 0, -4.7], ['cover']], ['east-barrier', [13, 0, 4.7], ['cover']],
     ['central-west', [-5.5, 0, 0], ['cover']], ['central-east', [5.5, 0, 0], ['cover']],
-    ['upper-west', [-14, 3.9, 10], ['cover', 'upper']], ['north-west-cover', [-11, 0, -12], ['cover']],
+    ['upper-west', [-14, 4, 10], ['cover', 'upper']], ['north-west-cover', [-11, 0, -12], ['cover']],
   ]);
   const players = [spawn('neon-player-south', [0, 0, 18], Math.PI, ['player', 'south'])];
   const npcs = [
     spawn('neon-scout-west', [-16, 0, 15], 0, ['npc', 'south'], 'scout'),
     spawn('neon-rifleman-east', [16, 0, 15], 0, ['npc', 'south'], 'rifleman'),
     spawn('neon-heavy-north', [-16, 0, -14], Math.PI, ['npc', 'north'], 'heavy'),
-    spawn('neon-sniper-upper', [-14, 3.9, 12], Math.PI, ['npc', 'upper'], 'sniper'),
+    spawn('neon-sniper-upper', [-14, 4, 12], Math.PI, ['npc', 'upper'], 'sniper'),
   ];
   return createOutput(factory, graph, cover, players, npcs, [
     { id: 'neon-ammo-west', type: 'ammo', position: [-20, 0.9, -3], amount: 30, respawnSeconds: 8 },
@@ -68,6 +68,6 @@ export function buildNeonYard(): MapBuildOutput {
   ], [
     { id: 'neon-target-west', position: [-21, 0, -14], maxHealth: 100, respawnDelay: 3, accentColor: 0x00e5ff },
     { id: 'neon-target-east', position: [21, 0, -14], maxHealth: 100, respawnDelay: 3, accentColor: 0xff814f },
-    { id: 'neon-target-upper', position: [-14, 3.9, 12], maxHealth: 120, respawnDelay: 4, accentColor: 0x6d9cff },
+    { id: 'neon-target-upper', position: [-14, 4, 12], maxHealth: 120, respawnDelay: 4, accentColor: 0x6d9cff },
   ]);
 }

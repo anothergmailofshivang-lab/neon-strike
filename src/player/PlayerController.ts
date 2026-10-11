@@ -71,7 +71,7 @@ export class PlayerController {
   }
 
   public setActive(active: boolean): void {
-    if (this.disposed) {
+    if (this.disposed || this.active === active) {
       return;
     }
     this.active = active;
@@ -103,11 +103,11 @@ export class PlayerController {
     );
   }
 
-  public reset(position?: readonly [number, number, number]): void {
+  public reset(position?: readonly [number, number, number], yaw = 0): void {
     this.motor.reset(position);
     this.motor.getPosition(this.position);
     this.cameraPresentation.root.position.copy(this.position);
-    this.look.reset();
+    this.look.reset(yaw);
     this.cameraPresentation.resetPresentation();
     this.input.reset();
   }

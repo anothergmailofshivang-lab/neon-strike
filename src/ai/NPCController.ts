@@ -19,6 +19,7 @@ import { getWeaponDefinition } from '../weapons/WeaponDefinitions';
 
 export interface NPCDebugSnapshot {
   id: string;
+  teamId: string;
   archetype: string;
   state: NPCState;
   health: number;
@@ -34,6 +35,7 @@ export interface NPCDebugSnapshot {
 
 export class NPCController implements Damageable {
   public readonly entityId: string;
+  public readonly teamId: string;
   public readonly root: THREE.Group;
   public readonly maxHealth: number;
   private readonly scene: THREE.Scene;
@@ -65,6 +67,9 @@ export class NPCController implements Damageable {
   private respawnRemaining = 0;
   private readonly playerPosition = new THREE.Vector3();
   private readonly spawnPosition = new THREE.Vector3();
+  private combatTarget: Damageable | null;
+  private respawnEnabled = true;
+  private objectiveDestination: THREE.Vector3 | null = null;
 
   public constructor(
     id: string,
@@ -79,12 +84,15 @@ export class NPCController implements Damageable {
     damageSystem: DamageSystem,
     eventBus: CombatEventBus,
     patrolPoints: readonly THREE.Vector3[] = [],
+    teamId = 'enemy',
   ) {
     this.entityId = id;
+    this.teamId = teamId;
     this.definition = definition;
     this.difficulty = getDifficulty(difficulty);
     this.maxHealth = definition.health;
     this.currentHealth = definition.health;
+    this.combatTarget = player;
     this.scene = scene;
     this.collisionWorld = collisionWorld;
     this.visual = createNPCVisual(definition);
@@ -116,6 +124,7 @@ export class NPCController implements Damageable {
       eventBus,
     );
     this.patrolPoints = patrolPoints.map((point) => point.clone());
+    this.patrolIndex = [...id].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     this.stateMachine.subscribe((transition) => {
       if (transition.next === NPCState.DEFEATED) {
         this.weapon.runtime.cancelReload();
@@ -158,6 +167,7 @@ export class NPCController implements Damageable {
       this.root.visible = false;
       this.active = false;
       this.respawnRemaining = 5;
+      this.collisionWorld.setActorEnabled(this.entityId, false);
     }
     return {
       applied: damage > 0,
@@ -171,6 +181,32 @@ export class NPCController implements Damageable {
 
   public setTargetPosition(position: THREE.Vector3): void {
     this.playerPosition.copy(position);
+  }
+
+  public setCombatTarget(target: Damageable | null): void {
+    if (target?.entityId !== this.combatTarget?.entityId) {
+      this.memory.clear(); this.targetAcquiredAt = this.currentTime; this.nextDecisionAt = 0;
+    }
+    this.combatTarget = target;
+    this.weapon.setTarget(target);
+    if (target) {
+      target.root.getWorldPosition(this.targetPosition);
+      this.playerPosition.copy(this.targetPosition);
+    }
+  }
+
+  public selectCombatTarget(candidates: readonly Damageable[]): void {
+    const visible = candidates.filter((target) => this.perception.canSee(this.position, this.root.rotation.y, target.root.position.clone().add(new THREE.Vector3(0, 1, 0))))
+      .sort((a, b) => a.root.position.distanceToSquared(this.position) - b.root.position.distanceToSquared(this.position) || a.entityId.localeCompare(b.entityId));
+    this.setCombatTarget(visible[0] ?? (this.combatTarget && candidates.includes(this.combatTarget) ? this.combatTarget : null));
+  }
+
+  public getCombatTarget(): Damageable | null { return this.combatTarget; }
+
+  public setObjectiveDestination(position: THREE.Vector3 | null): void { this.objectiveDestination = position?.clone() ?? null; }
+
+  public setRespawnEnabled(enabled: boolean): void {
+    this.respawnEnabled = enabled;
   }
 
   public getSquadContact(): THREE.Vector3 | null {
@@ -192,6 +228,7 @@ export class NPCController implements Damageable {
       return;
     }
     if (!this.active) {
+      if (!this.respawnEnabled) return;
       this.respawnRemaining = Math.max(this.respawnRemaining - delta, 0);
       if (this.respawnRemaining <= 0) {
         this.reset(this.spawnPosition);
@@ -200,16 +237,18 @@ export class NPCController implements Damageable {
       return;
     }
 
-    const playerSnapshot = playerPosition.clone().add(new THREE.Vector3(0, 1, 0));
+    const playerSnapshot = this.combatTarget && !this.combatTarget.isDefeated
+      ? this.combatTarget.root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0))
+      : playerPosition.clone().add(new THREE.Vector3(0, 1, 0));
     const wasVisible = this.memory.snapshot.targetVisible;
-    const observation = this.perception.observe(
+    const observation = this.combatTarget && !this.combatTarget.isDefeated ? this.perception.observe(
       this.position,
       this.root.rotation.y,
       playerSnapshot,
       this.memory,
       this.currentTime,
       this.difficulty.memoryDuration,
-    );
+    ) : { visible: false, distance: Infinity, targetPosition: this.position.clone() };
     if (observation.visible && !wasVisible) this.targetAcquiredAt = this.currentTime;
     this.weapon.update(delta);
     if (this.currentTime >= this.nextDecisionAt) {
@@ -222,6 +261,7 @@ export class NPCController implements Damageable {
   }
 
   public reset(spawnPosition = this.position): void {
+    this.collisionWorld.setActorEnabled(this.entityId, true);
     this.collisionWorld.resetActor(this.entityId, [spawnPosition.x, spawnPosition.y, spawnPosition.z], this.definition.movement.standingHeight);
     this.position.copy(spawnPosition);
     this.previousPosition.copy(spawnPosition);
@@ -244,15 +284,13 @@ export class NPCController implements Damageable {
 
   public setActive(active: boolean): void {
     this.enabled = active;
-    if (!active) {
-      this.weapon.runtime.cancelReload();
-    }
   }
 
   public getDebugSnapshot(): NPCDebugSnapshot {
     const memory = this.memory.snapshot;
     return {
       id: this.entityId,
+      teamId: this.teamId,
       archetype: this.definition.id,
       state: this.stateMachine.state,
       health: this.currentHealth,
@@ -358,8 +396,9 @@ export class NPCController implements Damageable {
       return;
     }
     if (this.stateMachine.state === NPCState.PATROL || this.stateMachine.state === NPCState.IDLE || this.stateMachine.state === NPCState.RECOVER_NAVIGATION) {
-      this.destination = this.getPatrolDestination();
+      this.destination = this.objectiveDestination?.clone() ?? this.getPatrolDestination();
       this.moveTowardDestination(delta);
+      if (this.navigation.isComplete) this.root.rotation.y += delta * 0.65;
     }
   }
 
@@ -382,7 +421,7 @@ export class NPCController implements Damageable {
     const corrected = this.collisionWorld.getActorFootPosition(this.entityId, this.definition.movement.standingHeight);
     this.position.set(corrected.x, corrected.y, corrected.z);
     this.root.position.copy(this.position);
-    this.root.rotation.y = Math.atan2(direction.x, -direction.z);
+    this.root.rotation.y = Math.atan2(-direction.x, -direction.z);
     if (result.collisionCount > 0 && this.movement.lengthSq() < 0.00001) {
       this.stuckTime += delta;
     }
@@ -417,7 +456,7 @@ export class NPCController implements Damageable {
     const direction = target.clone().sub(this.position);
     direction.y = 0;
     if (direction.lengthSq() < 0.001) return;
-    const desired = Math.atan2(direction.x, -direction.z);
+    const desired = Math.atan2(-direction.x, -direction.z);
     let difference = desired - this.root.rotation.y;
     while (difference > Math.PI) difference -= Math.PI * 2;
     while (difference < -Math.PI) difference += Math.PI * 2;

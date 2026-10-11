@@ -44,6 +44,14 @@ export function validateMapDefinition(definition: MapDefinition): MapDefinition 
   if (!definition.build) {
     throw new Error(`Map ${definition.id} has no builder.`);
   }
+  const objectiveIds = new Set<string>();
+  for (const point of definition.controlPoints) {
+    if (!point.id.trim() || objectiveIds.has(point.id)) throw new Error(`Map ${definition.id} has duplicate control point ID: ${point.id}`);
+    objectiveIds.add(point.id);
+    if (!point.displayName.trim() || point.radius <= 0 || point.position.some((value) => !Number.isFinite(value))) {
+      throw new Error(`Map ${definition.id} has invalid control point: ${point.id}`);
+    }
+  }
   return definition;
 }
 

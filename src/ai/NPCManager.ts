@@ -8,12 +8,19 @@ import type { MapInstance } from '../world/MapInstance';
 import { getNPCArchetype } from './NPCDefinitions';
 import { NPCController, type NPCDebugSnapshot } from './NPCController';
 import type { DifficultyConfig } from './NPCDifficulty';
+import type { GameModeId } from '../match/MatchTypes';
 
 export interface NPCEncounterSummary {
   total: number;
   active: number;
   defeated: number;
   states: Readonly<Record<string, number>>;
+}
+
+export interface NPCMatchRoster {
+  modeId: GameModeId;
+  count: number;
+  respawnsEnabled: boolean;
 }
 
 export class NPCManager {
@@ -24,10 +31,12 @@ export class NPCManager {
   private readonly scene: THREE.Scene;
   private readonly collisionWorld: CollisionWorld;
   private readonly eventBus: CombatEventBus;
-  private readonly difficulty: DifficultyConfig['id'];
+  private difficulty: DifficultyConfig['id'];
   private enabled = false;
   private simulationTime = 0;
   private spawnPositions: THREE.Vector3[] = [];
+  private roster: NPCMatchRoster = { modeId: 'free-for-all', count: 4, respawnsEnabled: true };
+  private objectiveDestinations: THREE.Vector3[] = [];
 
   public constructor(
     scene: THREE.Scene,
@@ -53,8 +62,10 @@ export class NPCManager {
     this.spawnPositions = map.npcSpawns.map((spawn) => spawn.position.clone());
     const fallbackArchetypes = ['scout', 'rifleman', 'heavy', 'sniper'] as const;
     const patrolPoints = map.navigationGraph.getAllNodes().map((node) => node.position);
-    for (const [index, spawn] of map.npcSpawns.entries()) {
+    const desiredCount = Math.min(Math.max(Math.floor(this.roster.count), 0), map.npcSpawns.length);
+    for (const [index, spawn] of map.npcSpawns.slice(0, desiredCount).entries()) {
       const archetype = spawn.archetype ?? fallbackArchetypes[index % fallbackArchetypes.length];
+      const teamId = this.getTeamId(index, spawn.id);
       const npc = new NPCController(
         `${map.definition.id}:${spawn.id}`,
         getNPCArchetype(archetype),
@@ -68,12 +79,28 @@ export class NPCManager {
         this.damageSystem,
         this.eventBus,
         patrolPoints,
+        teamId,
       );
+      npc.setRespawnEnabled(this.roster.respawnsEnabled);
+      npc.setObjectiveDestination(this.objectiveDestinations[index % Math.max(this.objectiveDestinations.length, 1)] ?? null);
       this.npcs.push(npc);
       this.damageSystem.register(npc);
       this.targetRegistry.register(npc);
     }
     for (const npc of this.npcs) npc.setActive(this.enabled);
+  }
+
+  public configureRoster(roster: NPCMatchRoster): void {
+    this.roster = { ...roster, count: Math.max(Math.floor(roster.count), 0) };
+  }
+
+  public setDifficulty(difficulty: DifficultyConfig['id']): void {
+    this.difficulty = difficulty;
+  }
+
+  public setObjectiveDestinations(destinations: readonly THREE.Vector3[]): void {
+    this.objectiveDestinations = destinations.map((destination) => destination.clone());
+    for (const [index, npc] of this.npcs.entries()) npc.setObjectiveDestination(this.objectiveDestinations[index % Math.max(this.objectiveDestinations.length, 1)] ?? null);
   }
 
   public setActive(active: boolean): void {
@@ -90,8 +117,15 @@ export class NPCManager {
     this.simulationTime += Math.max(deltaSeconds, 0);
     let squadContact: THREE.Vector3 | null = null;
     let contactSource: NPCController | null = null;
+    const targets = new Map<string, Damageable | null>();
     for (const npc of this.npcs) {
-      npc.setTargetPosition(playerPosition);
+      npc.selectCombatTarget(this.getCandidates(npc));
+      targets.set(npc.entityId, npc.getCombatTarget());
+    }
+    for (const npc of this.npcs) {
+      const target = targets.get(npc.entityId) ?? null;
+      npc.setCombatTarget(target);
+      npc.setTargetPosition(target?.root.getWorldPosition(new THREE.Vector3()) ?? playerPosition);
       npc.update(deltaSeconds);
       const contact = npc.getSquadContact();
       if (!squadContact && contact) {
@@ -121,10 +155,18 @@ export class NPCManager {
   public clearMap(): void {
     this.clearNpcs();
     this.spawnPositions = [];
+    this.objectiveDestinations = [];
   }
 
   public getSnapshots(): readonly NPCDebugSnapshot[] {
     return this.npcs.map((npc) => npc.getDebugSnapshot());
+  }
+
+  public getParticipantPositions(): readonly { id: string; teamId: string; alive: boolean; position: THREE.Vector3 }[] {
+    return this.npcs.map((npc) => {
+      const snapshot = npc.getDebugSnapshot();
+      return { id: snapshot.id, teamId: snapshot.teamId, alive: snapshot.health > 0, position: snapshot.position };
+    });
   }
 
   public getSummary(): NPCEncounterSummary {
@@ -156,5 +198,24 @@ export class NPCManager {
       npc.dispose();
     }
     this.npcs.length = 0;
+  }
+
+  private getCandidates(npc: NPCController): Damageable[] {
+    return [this.playerHealth, ...this.npcs]
+      .filter((candidate) => candidate.entityId !== npc.entityId && !candidate.isDefeated)
+      .filter((candidate) => this.isValidTarget(npc, candidate));
+  }
+
+  private isValidTarget(npc: NPCController, candidate: Damageable): boolean {
+    if (this.roster.modeId === 'survival') return candidate.entityId === this.playerHealth.entityId;
+    if (this.roster.modeId === 'free-for-all') return true;
+    if (this.roster.modeId === 'team-deathmatch' || this.roster.modeId === 'domination') return npc.teamId !== candidate.teamId;
+    return false;
+  }
+
+  private getTeamId(index: number, spawnId: string): string {
+    if (this.roster.modeId === 'free-for-all') return `ffa:${spawnId}`;
+    if (this.roster.modeId === 'team-deathmatch' || this.roster.modeId === 'domination') return index % 2 === 0 ? 'player' : 'enemy';
+    return 'enemy';
   }
 }

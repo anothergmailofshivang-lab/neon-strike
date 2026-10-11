@@ -75,6 +75,13 @@ export function validateMapInstance(definition: MapDefinition, instance: MapInst
       errors.push(`Training target is outside map bounds: ${target.id}`);
     }
   }
+  const objectiveIds = new Set<string>();
+  for (const point of instance.controlPoints) {
+    if (objectiveIds.has(point.id)) errors.push(`Duplicate control point ID: ${point.id}`);
+    objectiveIds.add(point.id);
+    if (point.radius <= 0 || !point.position.every((value) => Number.isFinite(value))) errors.push(`Invalid control point: ${point.id}`);
+    if (Math.abs(point.position[0]) > halfWidth || Math.abs(point.position[2]) > halfDepth) errors.push(`Control point is outside map bounds: ${point.id}`);
+  }
   const coverIds = new Set<string>();
   for (const point of instance.coverRegistry.getAll()) {
     if (coverIds.has(point.id)) errors.push(`Duplicate cover ID: ${point.id}`);
@@ -110,6 +117,9 @@ export function validateMapSpawns(instance: MapInstance, collisionWorld: Collisi
     if (!hit) {
       result.errors.push(`Spawn has no supporting surface: ${spawn.id}`);
       continue;
+    }
+    if (!collisionWorld.isCapsuleClear({ x: spawn.position.x, y: spawn.position.y, z: spawn.position.z })) {
+      result.errors.push(`Spawn capsule overlaps solid geometry: ${spawn.id}`);
     }
     if (hit.point.y > spawn.position.y + 0.5 || hit.point.y < spawn.position.y - 1.5) {
       result.warnings.push(`Spawn height differs from nearest supporting surface: ${spawn.id}`);

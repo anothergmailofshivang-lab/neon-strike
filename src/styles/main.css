@@ -85,6 +85,17 @@ button:focus-visible {
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38), inset 0 0 40px rgba(0, 191, 255, 0.04);
 }
 
+.startup-overlay .interface-panel {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: clamp(20px, 3vw, 34px);
+}
+
+.results-overlay .interface-panel {
+  width: min(760px, 100%);
+}
+
 .eyebrow {
   margin: 0 0 14px;
   color: #64eaff;
@@ -135,6 +146,94 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 8px;
   width: min(760px, 100%);
+}
+
+.mode-card-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: min(760px, 100%);
+}
+
+.mode-card {
+  display: grid;
+  min-height: 110px;
+  gap: 6px;
+  padding: 11px;
+  border: 1px solid rgba(100, 234, 255, 0.2);
+  color: #a9d5de;
+  background: linear-gradient(145deg, rgba(17, 51, 71, 0.85), rgba(5, 16, 30, 0.92));
+  text-align: left;
+  cursor: pointer;
+}
+
+.mode-card:hover,
+.mode-card-selected {
+  border-color: rgba(111, 242, 255, 0.9);
+  box-shadow: 0 0 18px rgba(100, 234, 255, 0.18);
+  color: #f0ffff;
+}
+
+.mode-card strong,
+.mode-card small {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.mode-card span {
+  color: #a4bdc5;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.mode-card small {
+  align-self: end;
+  color: #6ff2ff;
+  font-size: 0.6rem;
+}
+
+.match-settings-panel {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 10px;
+  border: 1px solid rgba(100, 234, 255, 0.2);
+}
+
+.match-settings-panel legend {
+  grid-column: 1 / -1;
+  color: #64eaff;
+  font-size: 0.63rem;
+  letter-spacing: 0.14em;
+}
+
+.match-settings-panel label {
+  display: grid;
+  gap: 4px;
+  color: #8da9b8;
+  font-size: 0.62rem;
+}
+
+.match-settings-panel input,
+.match-settings-panel select {
+  width: 100%;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid rgba(100, 234, 255, 0.24);
+  color: #d9fbff;
+  background: rgba(3, 12, 24, 0.8);
+}
+
+.setup-summary {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-left: 2px solid #64eaff;
+  color: #b9edf4;
+  background: rgba(100, 234, 255, 0.06);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .map-card {
@@ -458,6 +557,63 @@ h2 {
   pointer-events: none;
 }
 
+.match-status-hud,
+.match-score-hud,
+.match-timer-hud,
+.objective-status-hud {
+  position: absolute;
+  top: 18px;
+  padding: 9px 12px;
+  border: 1px solid rgba(100, 234, 255, 0.3);
+  background: rgba(5, 16, 30, 0.78);
+  color: #9bdce8;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.match-status-hud { left: 18px; top: 62px; color: #6ff2ff; }
+.match-score-hud { left: 18px; top: 103px; }
+.match-timer-hud { left: 50%; top: 18px; transform: translateX(-50%); color: #f2ffff; }
+.objective-status-hud { left: 50%; top: 54px; max-width: 70%; transform: translateX(-50%); color: #bdebf0; font-size: 0.59rem; text-align: center; }
+
+.kill-feed {
+  position: absolute;
+  top: 145px;
+  left: 18px;
+  display: grid;
+  gap: 4px;
+  color: #d8f8ff;
+  font-size: 0.66rem;
+  text-shadow: 0 1px 4px #000;
+}
+
+.scoreboard-panel {
+  position: absolute;
+  top: 72px;
+  right: 18px;
+  z-index: 4;
+  display: grid;
+  min-width: 300px;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid rgba(100, 234, 255, 0.4);
+  background: rgba(4, 15, 26, 0.94);
+  color: #bfeef4;
+  font-size: 0.65rem;
+  pointer-events: auto;
+}
+
+.scoreboard-row { padding: 4px 0; border-top: 1px solid rgba(100, 234, 255, 0.12); }
+.scoreboard-player { color: #6ff2ff; }
+
+.results-score,
+.results-stats {
+  color: #6ff2ff;
+  font: 0.75rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+
 .match-minimap {
   position: absolute;
   top: 18px;
@@ -659,6 +815,15 @@ h2 {
 }
 
 @media (max-width: 700px) {
+  .mode-card-list,
+  .match-settings-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .match-settings-panel legend {
+    grid-column: auto;
+  }
+
   .map-card-list {
     grid-template-columns: 1fr;
   }

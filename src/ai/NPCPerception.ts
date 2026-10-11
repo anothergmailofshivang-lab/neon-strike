@@ -33,7 +33,7 @@ export class NPCPerception {
     this.toTarget.copy(targetPosition).sub(observerPosition);
     const distance = this.toTarget.length();
     this.toTarget.normalize();
-    this.forward.set(Math.sin(observerYaw), 0, -Math.cos(observerYaw));
+    this.forward.set(-Math.sin(observerYaw), 0, -Math.cos(observerYaw));
     const inRange = distance <= this.profile.sightRange;
     const inFov = inRange && this.forward.dot(this.toTarget) >= Math.cos(this.profile.fieldOfView / 2);
     this.origin.set(observerPosition.x, observerPosition.y + 1.2, observerPosition.z);
@@ -45,6 +45,15 @@ export class NPCPerception {
       memory.loseVisual(time, memoryDuration);
     }
     return { visible, distance, direction: this.toTarget.clone(), targetPosition: target };
+  }
+
+  public canSee(position: THREE.Vector3, yaw: number, target: THREE.Vector3): boolean {
+    const origin = position.clone().add(new THREE.Vector3(0, 1.2, 0));
+    const direction = target.clone().sub(origin);
+    const distance = direction.length();
+    return distance < this.profile.sightRange
+      && new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).dot(direction.normalize()) >= Math.cos(this.profile.fieldOfView / 2)
+      && this.hasLineOfSight(origin, target, distance);
   }
 
   private hasLineOfSight(origin: THREE.Vector3, target: THREE.Vector3, distance: number): boolean {
