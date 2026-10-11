@@ -18,7 +18,13 @@ describe('map lifecycle', () => {
       const map = manager.load(definition.id);
       expect(manager.state).toBe(MapLifecycleState.ACTIVE);
       expect(manager.validation?.valid).toBe(true);
-      expect(map.root.name).toContain(definition.displayName === 'NEON YARD' ? 'NeonYard' : definition.id === 'dustline-depot' ? 'DustlineDepot' : 'Skybridge');
+      expect(map.root.name).toContain(
+        definition.id === 'modern-city' ? 'ModernCity'
+          : definition.id === 'industrial-facility' ? 'DustlineDepot'
+            : definition.id === 'jungle-forest' ? 'JungleForest'
+              : definition.id === 'sci-fi-facility' ? 'Skybridge'
+                : 'FantasyRuins',
+      );
       expect(map.collisionDefinitions.length).toBeGreaterThan(5);
       expect(map.coverRegistry.getAll().length).toBeGreaterThan(2);
       const nodes = map.navigationGraph.getAllNodes();
@@ -37,13 +43,13 @@ describe('map lifecycle', () => {
     const scene = new THREE.Scene();
     const collision = await CollisionWorld.create([]);
     const manager = new MapManager(scene, collision, createMapRegistry(MAP_DEFINITIONS));
-    const first = manager.load('neon-yard');
-    const second = manager.load('skybridge');
+    const first = manager.load('modern-city');
+    const second = manager.load('sci-fi-facility');
 
     expect(first.root.parent).toBeNull();
     expect(second.root.parent).toBe(scene);
     expect(scene.children).toHaveLength(1);
-    expect(second.definition.id).toBe('skybridge');
+    expect(second.definition.id).toBe('sci-fi-facility');
 
     manager.dispose();
     collision.dispose();

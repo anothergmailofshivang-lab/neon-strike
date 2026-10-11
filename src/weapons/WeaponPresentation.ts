@@ -76,6 +76,7 @@ export class WeaponPresentation {
     this.firingFlashRemaining = Math.max(this.firingFlashRemaining - delta, 0);
     this.root.position.y = -0.25 - this.recoilOffset;
     this.root.position.z = -0.55 + this.recoilOffset * 0.35;
+    this.arms.update(delta, this.recoilOffset);
     if (this.activeModel) {
       const muzzle = this.activeModel.muzzle as THREE.Object3D & { userData: { flash?: number } };
       muzzle.userData.flash = this.firingFlashRemaining;

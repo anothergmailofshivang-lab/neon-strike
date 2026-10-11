@@ -20,10 +20,10 @@ describe('NPC encounter combat integration', () => {
     const targets = new CombatTargetRegistry();
     const player = new PlayerHealth(new THREE.Group());
     const mapManager = new MapManager(scene, collisionWorld, createMapRegistry(MAP_DEFINITIONS));
-    const map = mapManager.load('neon-yard');
+    const map = mapManager.load('modern-city');
     const manager = new NPCManager(scene, collisionWorld, player, damageSystem, targets, events);
     manager.setMap(map);
-    const scout = damageSystem.getTarget('neon-yard:neon-scout-west');
+    const scout = damageSystem.getTarget('modern-city:city-scout-west');
 
     expect(scout).not.toBeNull();
     expect(manager.getSummary().total).toBe(4);

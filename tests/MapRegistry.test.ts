@@ -3,10 +3,10 @@ import { MapRegistry, createMapRegistry } from '../src/world/MapRegistry';
 import { MAP_DEFINITIONS } from '../src/world/maps/MapCatalog';
 
 describe('map registry', () => {
-  it('registers the three distinct Phase 04 maps', () => {
+  it('registers the five distinct player-facing map experiences', () => {
     const registry = createMapRegistry(MAP_DEFINITIONS);
-    expect(registry.list().map((map) => map.id)).toEqual(['neon-yard', 'dustline-depot', 'skybridge']);
-    expect(registry.get('skybridge').tacticalTags).toContain('Vertical');
+    expect(registry.list().map((map) => map.id)).toEqual(['modern-city', 'industrial-facility', 'jungle-forest', 'sci-fi-facility', 'fantasy-ruins']);
+    expect(registry.get('sci-fi-facility').tacticalTags).toContain('Vertical');
   });
 
   it('rejects duplicate map IDs and unknown selections', () => {

@@ -13,10 +13,13 @@ export function calculatePlanarWishDirection(
 
   const normalizedStrafe = strafeInput / inputLength;
   const normalizedForward = forwardInput / inputLength;
-  const forwardX = Math.sin(yaw);
+  // PlayerRoot uses Three.js Object3D.rotation.y. Its local -Z forward
+  // rotates toward -X for positive yaw, while local +X right rotates toward
+  // -Z. Keep movement in the same basis as the visible camera/player rig.
+  const forwardX = -Math.sin(yaw);
   const forwardZ = -Math.cos(yaw);
   const rightX = Math.cos(yaw);
-  const rightZ = Math.sin(yaw);
+  const rightZ = -Math.sin(yaw);
   return output.set(
     rightX * normalizedStrafe + forwardX * normalizedForward,
     0,

@@ -39,6 +39,7 @@ import { SaveManager } from '../persistence/SaveManager';
 import { createWeaponCatalog } from '../weapons/WeaponDefinitions';
 import { getWeaponDefinition } from '../weapons/WeaponDefinitions';
 import type { PlayerLoadout } from '../loadouts/LoadoutTypes';
+import { Minimap } from '../ui/Minimap';
 
 export class GameApp {
   private readonly root: HTMLElement;
@@ -79,8 +80,9 @@ export class GameApp {
   private readonly sensitivityMaximum: number;
   private playerSettings: PlayerSettings;
   private resumePending = false;
-  private selectedMapId = 'neon-yard';
+  private selectedMapId = 'modern-city';
   private characterPreview: CharacterPreview | null = null;
+  private minimap: Minimap | null = null;
 
   public constructor(root: HTMLElement, config = createGameConfig()) {
     this.root = root;
@@ -154,6 +156,7 @@ export class GameApp {
     this.input?.dispose();
     this.player?.dispose();
     this.characterPreview?.dispose();
+    this.minimap?.dispose();
     this.weapons?.dispose();
     this.ammoPickups?.dispose();
     this.targetRange?.dispose();
@@ -186,6 +189,7 @@ export class GameApp {
     this.mapManager = null;
     this.renderer = null;
     this.characterPreview = null;
+    this.minimap = null;
   }
 
   private async initializeSystems(): Promise<void> {
@@ -194,7 +198,9 @@ export class GameApp {
     this.input = new InputManager();
     this.collisionWorld = await CollisionWorld.create([]);
     this.mapManager = new MapManager(this.sceneManager.scene, this.collisionWorld, this.mapRegistry);
-    const initialMap = this.mapManager.load('neon-yard');
+    const initialMap = this.mapManager.load('modern-city');
+    this.minimap = new Minimap(this.shell.minimapContainer);
+    this.minimap.setMap(initialMap);
     this.player = new PlayerController(
       this.sceneManager.scene,
       this.sceneManager.camera,
@@ -309,6 +315,7 @@ export class GameApp {
       this.weapons?.setActive(nextState === ApplicationState.PLAYING);
       this.npcManager?.setActive(nextState === ApplicationState.PLAYING);
       this.characterPreview?.setVisible(false);
+      this.minimap?.setVisible(nextState === ApplicationState.PLAYING);
     });
 
     this.lifecycle = new AppLifecycle(document, window, {
@@ -399,6 +406,7 @@ export class GameApp {
       this.targetRange?.setDefinitions([]);
       this.ammoPickups?.setDefinitions([]);
       this.mapManager?.unload();
+      this.minimap?.setMap(null);
     }
   }
 
@@ -502,6 +510,7 @@ export class GameApp {
     this.targetRange?.setDefinitions(map.trainingTargets);
     this.ammoPickups?.setDefinitions(map.pickups);
     this.ammoPickups?.reset();
+    this.minimap?.setMap(map);
   }
 
   private update(_deltaSeconds: number): void {
@@ -514,9 +523,11 @@ export class GameApp {
       return;
     }
     this.player?.update(_deltaSeconds);
-    const playerPosition = this.player?.getSnapshot().position;
+    const playerSnapshot = this.player?.getSnapshot();
+    const playerPosition = playerSnapshot?.position;
     if (playerPosition) {
       this.npcManager?.update(_deltaSeconds, playerPosition);
+      this.minimap?.update(playerPosition, playerSnapshot?.yaw ?? 0, this.npcManager?.getSnapshots() ?? []);
     }
     this.targetRange?.update(_deltaSeconds);
     this.weapons?.update(_deltaSeconds, this.player?.isPointerLocked ?? false);

@@ -11,7 +11,7 @@ describe('map collision', () => {
     const collision = await CollisionWorld.create([]);
     const manager = new MapManager(scene, collision, createMapRegistry(MAP_DEFINITIONS));
 
-    for (const id of ['neon-yard', 'dustline-depot', 'skybridge']) {
+    for (const id of ['modern-city', 'industrial-facility', 'jungle-forest', 'sci-fi-facility', 'fantasy-ruins']) {
       manager.load(id);
       const boundary = collision.raycastStaticWorld(
         { x: 0, y: 1.2, z: 0 },

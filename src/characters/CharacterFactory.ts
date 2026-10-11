@@ -112,8 +112,20 @@ export function createCharacterVisual(definition: CharacterDefinition, rawAppear
     mesh(new THREE.BoxGeometry(0.28, 0.46, 0.14), accentMaterial, 'back-cell', [0, 1.28, 0.28]);
   }
   let disposed = false;
+  let animationTime = 0;
   return {
     root, body, head, weapon, appearance,
+    animate: (deltaSeconds, movementSpeed, moving) => {
+      if (disposed) return;
+      const delta = Math.min(Math.max(deltaSeconds, 0), 0.1);
+      animationTime += delta * (moving ? Math.max(movementSpeed, 1) : 0.35);
+      const stride = moving ? Math.sin(animationTime * 2.2) * 0.45 : Math.sin(animationTime) * 0.025;
+      leftLeg.rotation.x = stride;
+      rightLeg.rotation.x = -stride;
+      leftArm.rotation.x = -stride * 0.65;
+      rightArm.rotation.x = stride * 0.65;
+      body.position.y = 1.05 + (moving ? Math.abs(Math.sin(animationTime * 2.2)) * 0.025 : 0);
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

@@ -1,6 +1,6 @@
 # NEON STRIKE
 
-NEON STRIKE is an original browser-based single-player 3D FPS in development. Phase 05 extends the Phase 00–04 foundation with five selectable operatives, procedural character previews, appearance customization, primary/secondary loadouts, weapon skins, NPC visual variants, and versioned local preferences.
+NEON STRIKE is an original browser-based single-player 3D FPS in development. The current foundation includes five selectable operatives, procedural character previews, appearance customization, primary/secondary loadouts, weapon skins, NPC visual variants, five distinct combat maps, a live match-only minimap, and versioned local preferences.
 
 ## Requirements
 
@@ -63,7 +63,7 @@ npm run typecheck
 - `src/world/MapRegistry.ts` — validated map catalog and selection metadata.
 - `src/world/MapManager.ts` — map build, collision replacement, validation, activation, unload, rollback, and disposal lifecycle.
 - `src/world/MapValidation.ts` — structural, spawn-support, navigation, cover, pickup, and training-target validation.
-- `src/world/maps/` — distinct Neon Yard, Dustline Depot, and Skybridge procedural builders and catalog.
+- `src/world/maps/` — distinct Modern City, Industrial Facility, Jungle Frontier, Sci-Fi Facility, and Fantasy Ruins procedural builders and catalog.
 - `src/world/geometry/` — reusable map geometry, material, lighting, floor, boundary, ramp, rail, and trim helpers.
 - `src/navigation/NavigationGraph.ts` / `src/navigation/AStarPathfinder.ts` — tagged practice navigation graph and deterministic A* routes.
 - `src/world/CoverRegistry.ts` — world-geometry-validated cover point registry and cover scoring.
@@ -105,20 +105,25 @@ npm run typecheck
 - `src/player/PlayerHealth.ts` — player-side `Damageable` health target used by NPC fire.
 - `src/effects/CombatEffects.ts` — bounded muzzle/tracer/impact presentation effects.
 - `src/audio/WeaponAudio.ts` — lightweight local Web Audio weapon and reload feedback.
-- `src/ui/AppShell.ts` — state-driven startup, pause, settings, combat HUD, crosshair, hit marker, and combat messages.
+- `src/ui/AppShell.ts` — state-driven startup, pause, settings, combat HUD, match-only minimap mount, crosshair, hit marker, and combat messages.
+- `src/ui/Minimap.ts` — map-data-driven live minimap using active navigation topology, player position/yaw, and only currently visible NPC markers.
 - `src/styles/main.css` — full-window layout and restrained neon-industrial visual styling.
 
 ## Current feature status
 
-Phase 05 is implemented: the main menu opens a functional operative and loadout screen containing Vanguard, Volt, Bastion, Ghostline, and Circuit. Each character has a distinct procedural silhouette, two validated palettes, outfit/head variants, and compatible accessory slots. The selected character is rendered in an isolated 3D preview, while a preview action displays the selected weapon skin through the same procedural weapon model family used in first-person. Primary and secondary weapons are validated against the existing seven-weapon catalog, `1`/`2` switch the configured slots, `Q` and the mouse wheel retain development access to the full catalog, and skins change materials only. The selected appearance drives first-person forearm accents and NPC archetype visual variants without changing collision, health, movement, AI, or weapon statistics. Preferences persist through schema-versioned local storage with safe fallback behavior. Multiplayer, progression, crouching, and sliding remain deferred.
+The main menu opens a functional operative and loadout screen containing Vanguard, Volt, Bastion, Ghostline, and Circuit. Each character has a distinct procedural silhouette, two validated palettes, outfit/head variants, compatible accessory slots, articulated first-person arms, and lightweight movement/idle animation. The selected character is rendered in an isolated 3D preview, while a preview action displays the selected weapon skin through the same procedural weapon model family used in first-person. Primary and secondary weapons are validated against the existing seven-weapon catalog, `1`/`2` switch the configured slots, `Q` and the mouse wheel retain development access to the full catalog, and skins change materials only. The selected appearance drives first-person forearm accents and NPC archetype visual variants without changing collision, health, movement, AI, or weapon statistics. Preferences persist through schema-versioned local storage with safe fallback behavior. The grounded movement basis follows the player yaw hierarchy and has regression coverage across all eight cardinal/diagonal headings; pitch remains camera-only. Multiplayer, progression, crouching, and sliding remain deferred.
 
-## Phase 04 map catalog
+## Current map catalog
 
 | Map | Layout and combat identity | Verticality | Active metadata |
 |---|---|---|---|
-| NEON YARD (`neon-yard`) | Compact central training block, side loops, short/medium lanes | West ramp and upper training platform | 10 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
-| DUSTLINE DEPOT (`dustline-depot`) | Cargo-container lanes, loading bay, exposed long lane, flank route | Loading ramp and raised platform | 11 navigation nodes, 7 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
-| SKYBRIDGE (`skybridge`) | Lower arena, exposed bridges, sheltered cover, layered sightlines | Two upper platforms and two supported ramps | 12 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+| MODERN CITY (`modern-city`) | Neon avenue, sidewalks, commercial/residential blocks, park, two accessible interiors, and vehicles | Mostly ground-level with connected interior and alley routes | 10 navigation nodes, 7 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+| INDUSTRIAL FACILITY (`industrial-facility`) | Cargo-container lanes, loading bay, exposed long lane, flank route | Loading ramp and raised platform | 11 navigation nodes, 7 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+| JUNGLE FRONTIER (`jungle-forest`) | Dense trees, rocks, forest trails, cabin interior, stream crossing, and outpost | Bridge crossing and varied natural cover | 10 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+| SCI-FI FACILITY (`sci-fi-facility`) | Lower arena, exposed bridges, sheltered cover, layered sightlines | Two upper platforms and two supported ramps | 12 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+| FANTASY RUINS (`fantasy-ruins`) | Castle gate, village houses, market square, ruined wall, towers, bridge, and rune crystal | Towers, castle walls, and bridge crossing | 9 navigation nodes, 6 cover points, 4 NPC spawns, 3 ammo pickups, 3 targets |
+
+The match HUD includes a live minimap only while the application is in `PLAYING`. Its simplified route lines, cover nodes, map bounds, player marker, yaw arrow, and visible-enemy markers are derived from the active map instance; hidden NPCs are not revealed.
 
 ## Phase 05 character and loadout catalog
 
@@ -171,7 +176,7 @@ Starting weapon catalog:
 ## Manual controller validation
 
 1. Run `npm run dev` and open the Vite URL in a desktop browser with WebGL, Web Audio, and Pointer Lock support.
-2. Select NEON YARD, DUSTLINE DEPOT, or SKYBRIDGE and click the selected **Enter** button; accept the browser's pointer capture.
+2. Select any of MODERN CITY, INDUSTRIAL FACILITY, JUNGLE FRONTIER, SCI-FI FACILITY, or FANTASY RUINS and click the selected **Enter** button; accept the browser's pointer capture.
 3. Verify mouse-look, `W/A/S/D`, `Shift`, and `Space` in the arena.
 4. Fire the default rifle at a target and verify ammunition, tracer, muzzle flash, hit marker, health response, and damage feedback.
 5. Aim at a target through a wall and verify that no target damage is applied.
@@ -185,7 +190,7 @@ Starting weapon catalog:
 13. Shoot training targets and NPC bodies/heads, verify shared damage/defeat feedback, then wait for defeated NPCs to respawn.
 14. Verify the player can be damaged by NPC fire and can reset the complete encounter from the pause menu.
 15. Return to the menu, select a different map, and verify that the new collision, lighting, pickups, targets, NPC spawns, navigation, and cover are active.
-16. Repeat transitions through all three maps and confirm that old geometry, NPCs, paths, pickups, and targets do not remain active.
+16. Repeat transitions through all five maps and confirm that old geometry, NPCs, paths, pickups, targets, and minimap topology do not remain active.
 17. Open **Configure Character & Loadout**, select each operative, change palettes and variants, and inspect the isolated 3D preview.
 18. Configure a primary and secondary weapon, apply different skins, preview a weapon, save the configuration, and verify the actual first-person model and slot switching.
 19. Reload the browser and verify the saved operative, appearance, weapons, and skins are restored.
@@ -196,7 +201,7 @@ Starting weapon catalog:
 - Browser automation is not configured in this foundation, so Pointer Lock, visual controller behavior, weapon presentation, and audio should be manually checked with the development server.
 - Rapier is loaded as a deferred browser chunk; its compatibility build is approximately 2 MB before compression and is reported by Vite as a large chunk. This keeps the initial application chunk smaller while preserving a validated kinematic controller API.
 - The player and NPC colliders are standing capsules. Crouching, sliding, dynamic bodies, and advanced bunny-hop mechanics are deferred.
-- The three procedural maps use explicit simplified box colliders aligned to their solid structures; arbitrary mesh collision conversion is not implemented yet.
+- The five procedural maps use explicit simplified box colliders aligned to their solid structures; arbitrary mesh collision conversion is not implemented yet.
 - The current map transition path is synchronous because all Phase 04 geometry is procedural and locally generated. It still exposes explicit lifecycle states and rejects re-entrant transitions; asynchronous asset cancellation is deferred until external assets are introduced.
 - Browser integration tests for WebGL rendering, Pointer Lock, visual traversal, and audio were not run in the development environment because Chromium/Playwright is unavailable.
 - Character and weapon previews are procedural local geometry; no external rigged character assets or full skeletal animation library is required.

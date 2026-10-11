@@ -41,5 +41,6 @@ export interface CharacterVisual {
   head: THREE.Mesh;
   weapon: THREE.Mesh;
   appearance: CharacterAppearance;
+  animate: (deltaSeconds: number, movementSpeed: number, moving: boolean) => void;
   dispose: () => void;
 }

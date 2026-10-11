@@ -132,7 +132,7 @@ h2 {
 
 .map-card-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 8px;
   width: min(760px, 100%);
 }
@@ -155,6 +155,14 @@ h2 {
 
 .map-card-2 {
   background: linear-gradient(145deg, rgba(50, 79, 104, 0.9), rgba(8, 24, 39, 0.94));
+}
+
+.map-card-3 {
+  background: linear-gradient(145deg, rgba(37, 84, 48, 0.92), rgba(12, 29, 20, 0.94));
+}
+
+.map-card-4 {
+  background: linear-gradient(145deg, rgba(91, 66, 42, 0.92), rgba(32, 24, 18, 0.94));
 }
 
 .map-card:hover,
@@ -448,6 +456,25 @@ h2 {
   gap: 10px;
   padding: 18px;
   pointer-events: none;
+}
+
+.match-minimap {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 208px;
+  height: 208px;
+  overflow: hidden;
+  border: 1px solid rgba(100, 234, 255, 0.52);
+  background: rgba(4, 15, 26, 0.9);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 0 20px rgba(100, 234, 255, 0.08);
+  pointer-events: none;
+}
+
+.match-minimap-canvas {
+  display: block;
+  width: 208px;
+  height: 208px;
 }
 
 .crosshair {

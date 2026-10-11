@@ -217,6 +217,7 @@ export class NPCController implements Damageable {
       this.chooseAction(observation);
     }
     this.updateAction(delta, observation, playerSnapshot);
+    this.visual.animate(delta, this.definition.movement.walkSpeed, this.destination !== null);
     this.updateStuck(delta);
   }
 
@@ -236,6 +237,7 @@ export class NPCController implements Damageable {
     this.targetAcquiredAt = -Infinity;
     this.memory.clear();
     this.navigation.clear();
+    this.visual.animate(0, 0, false);
     this.weapon.runtime.reset();
     this.stateMachine.reset(this.currentTime);
   }

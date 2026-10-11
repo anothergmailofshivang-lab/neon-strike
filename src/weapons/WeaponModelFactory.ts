@@ -80,6 +80,29 @@ export function createWeaponModel(definition: WeaponDefinition, skin?: WeaponSki
   barrel.position.set(0, 0.02, -0.45 - barrelLength * 0.5);
   group.add(barrel);
 
+  if (definition.id !== 'pistol') {
+    const magazine = new THREE.Mesh(
+      new THREE.BoxGeometry(definition.id === 'shotgun' ? 0.2 : 0.18, definition.id === 'sniper-rifle' ? 0.38 : 0.48, 0.22),
+      detailMaterial,
+    );
+    magazine.position.set(0, -0.2, 0.08);
+    magazine.rotation.x = definition.id === 'sniper-rifle' ? -0.05 : -0.18;
+    group.add(magazine);
+  }
+  if (definition.id !== 'pistol' && definition.id !== 'shotgun') {
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, definition.id === 'sniper-rifle' ? 0.65 : 0.42), bodyMaterial);
+    stock.position.set(0, -0.01, 0.5);
+    group.add(stock);
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.34), detailMaterial);
+    sight.position.set(0, 0.16, -0.05);
+    group.add(sight);
+  }
+  if (definition.id === 'pistol') {
+    const slide = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.36), bodyMaterial);
+    slide.position.set(0, 0.08, -0.12);
+    group.add(slide);
+  }
+
   const muzzle = new THREE.Object3D();
   muzzle.position.set(0, 0.02, -0.45 - barrelLength);
   group.add(muzzle);

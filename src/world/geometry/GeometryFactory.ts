@@ -19,6 +19,15 @@ export interface CylinderOptions {
   collision?: boolean;
 }
 
+export interface SphereOptions {
+  name: string;
+  radius: number;
+  position: readonly [number, number, number];
+  material: THREE.Material;
+  scale?: readonly [number, number, number];
+  collision?: boolean;
+}
+
 export class GeometryFactory {
   public readonly root = new THREE.Group();
   public readonly collisionDefinitions: StaticBoxColliderDefinition[] = [];
@@ -64,6 +73,25 @@ export class GeometryFactory {
       this.collisionDefinitions.push({
         name: options.name,
         size: [options.radius * 2, options.height, options.radius * 2],
+        position: options.position,
+      });
+    }
+    return mesh;
+  }
+
+  public sphere(options: SphereOptions): THREE.Mesh {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(options.radius, 12, 8), options.material);
+    this.geometries.add(mesh.geometry);
+    this.materials.add(options.material);
+    mesh.name = options.name;
+    mesh.position.set(...options.position);
+    if (options.scale) mesh.scale.set(...options.scale);
+    this.root.add(mesh);
+    if (options.collision) {
+      const scale = options.scale ?? [1, 1, 1];
+      this.collisionDefinitions.push({
+        name: options.name,
+        size: [options.radius * 2 * scale[0], options.radius * 2 * scale[1], options.radius * 2 * scale[2]],
         position: options.position,
       });
     }

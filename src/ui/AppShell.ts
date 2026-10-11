@@ -40,6 +40,7 @@ export class AppShell {
   private pauseOverlay!: HTMLElement;
   private errorOverlay!: HTMLElement;
   private hud!: HTMLElement;
+  private minimapMount!: HTMLElement;
   private startupStatus!: HTMLElement;
   private startupButton!: HTMLButtonElement;
   private readonly mapButtons = new Map<string, HTMLButtonElement>();
@@ -165,6 +166,10 @@ export class AppShell {
 
   public get customizationPreviewMount(): HTMLElement {
     return this.previewMount;
+  }
+
+  public get minimapContainer(): HTMLElement {
+    return this.minimapMount;
   }
 
   public setCustomizationState(
@@ -612,6 +617,10 @@ export class AppShell {
     note.className = 'hud-note';
     note.textContent = 'Arena combat / operative, loadout, and NPC systems';
     hud.appendChild(note);
+
+    this.minimapMount = document.createElement('div');
+    this.minimapMount.className = 'match-minimap';
+    hud.appendChild(this.minimapMount);
 
     const crosshair = document.createElement('span');
     crosshair.className = 'crosshair';
