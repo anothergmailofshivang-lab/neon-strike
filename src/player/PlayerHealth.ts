@@ -24,6 +24,13 @@ export class PlayerHealth implements Damageable {
     return this.defeated;
   }
 
+  public restoreHealth(amount: number): number {
+    if (this.defeated || !Number.isFinite(amount) || amount <= 0) return 0;
+    const before = this.currentHealth;
+    this.currentHealth = Math.min(this.maxHealth, this.currentHealth + Math.floor(amount));
+    return this.currentHealth - before;
+  }
+
   public getHitRegions(): readonly [] {
     return [];
   }

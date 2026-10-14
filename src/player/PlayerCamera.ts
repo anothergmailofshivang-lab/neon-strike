@@ -34,6 +34,7 @@ export class PlayerCamera {
     }
 
     const effectsEnabled = this.config.cameraEffectsEnabled;
+    if (!effectsEnabled) this.landingOffset = 0;
     const movingOnGround = grounded
       && horizontalSpeed > 0.25
       && movementState !== PlayerMovementState.DISABLED;

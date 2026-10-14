@@ -1,3 +1,6 @@
+import type { ActionId, KeyBindings } from '../settings/SettingsService';
+import { DEFAULT_KEY_BINDINGS } from '../settings/SettingsService';
+
 export interface InputEventTarget {
   addEventListener(type: string, listener: EventListener): void;
   removeEventListener(type: string, listener: EventListener): void;
@@ -41,12 +44,17 @@ export class InputManager {
   private mouseDeltaY = 0;
   private mouseWheelDelta = 0;
   private active = false;
+  private inputEnabled = true;
+  private bindings: KeyBindings = { ...DEFAULT_KEY_BINDINGS };
 
   private readonly handleKeyDownEvent = (event: Event): void => {
+    if (!this.inputEnabled) return;
     const keyboardEvent = event as KeyboardEvent;
-    if (!keyboardEvent.code || isEditableTarget(keyboardEvent.target)) {
+    if (!keyboardEvent.code || keyboardEvent.repeat || isEditableTarget(keyboardEvent.target)) {
       return;
     }
+    if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) return;
+    if (Object.values(this.bindings).includes(keyboardEvent.code)) keyboardEvent.preventDefault();
 
     if (!this.heldKeys.has(keyboardEvent.code)) {
       this.pressedKeys.add(keyboardEvent.code);
@@ -56,6 +64,7 @@ export class InputManager {
   };
 
   private readonly handleKeyUpEvent = (event: Event): void => {
+    if (!this.inputEnabled) return;
     const keyboardEvent = event as KeyboardEvent;
     if (!keyboardEvent.code) {
       return;
@@ -67,6 +76,7 @@ export class InputManager {
   };
 
   private readonly handleMouseMoveEvent = (event: Event): void => {
+    if (!this.inputEnabled) return;
     const mouseEvent = event as MouseEvent;
     if (Number.isFinite(mouseEvent.movementX) && Number.isFinite(mouseEvent.movementY)) {
       this.mouseDeltaX += mouseEvent.movementX;
@@ -75,6 +85,7 @@ export class InputManager {
   };
 
   private readonly handleMouseDownEvent = (event: Event): void => {
+    if (!this.inputEnabled) return;
     const mouseEvent = event as MouseEvent;
     if (!this.heldMouseButtons.has(mouseEvent.button)) {
       this.pressedMouseButtons.add(mouseEvent.button);
@@ -84,10 +95,12 @@ export class InputManager {
   };
 
   private readonly handleMouseUpEvent = (event: Event): void => {
+    if (!this.inputEnabled) return;
     this.heldMouseButtons.delete((event as MouseEvent).button);
   };
 
   private readonly handleWheelEvent = (event: Event): void => {
+    if (!this.inputEnabled) return;
     const wheelEvent = event as WheelEvent;
     if (Number.isFinite(wheelEvent.deltaY)) {
       this.mouseWheelDelta += wheelEvent.deltaY;
@@ -123,8 +136,36 @@ export class InputManager {
     return this.active;
   }
 
+  public setEnabled(enabled: boolean): void {
+    this.inputEnabled = enabled;
+    if (!enabled) this.reset();
+  }
+
   public isHeld(code: string): boolean {
     return this.heldKeys.has(code);
+  }
+
+  public setBindings(bindings: KeyBindings): void {
+    this.bindings = { ...bindings };
+    this.reset();
+  }
+
+  public getBindings(): KeyBindings {
+    return { ...this.bindings };
+  }
+
+  public isActionHeld(action: ActionId): boolean {
+    return this.isHeld(this.bindings[action]) || (action === 'sprint' && this.bindings.sprint === 'ShiftLeft' && this.isHeld('ShiftRight'));
+  }
+
+  public consumeActionPressed(action: ActionId): boolean {
+    const primary = this.consumePressed(this.bindings[action]);
+    const secondary = action === 'sprint' && this.bindings.sprint === 'ShiftLeft' ? this.consumePressed('ShiftRight') : false;
+    return primary || secondary;
+  }
+
+  public wasActionPressed(action: ActionId): boolean {
+    return this.wasPressed(this.bindings[action]);
   }
 
   public wasPressed(code: string): boolean {

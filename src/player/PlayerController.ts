@@ -114,6 +114,8 @@ export class PlayerController {
 
   public applySettings(settings: PlayerSettings): void {
     this.look.setSensitivity(settings.mouseSensitivity);
+    this.look.setInvertY(settings.invertY);
+    this.motor.setSprintMode(settings.sprintMode);
     this.baseFieldOfView = settings.fieldOfView;
     this.cameraPresentation.setFieldOfView(this.aiming ? settings.fieldOfView * this.aimFovMultiplier : settings.fieldOfView);
     this.config.camera.headBobEnabled = settings.headBobEnabled;

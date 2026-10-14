@@ -11,11 +11,12 @@ import { getDifficulty, type DifficultyConfig } from './NPCDifficulty';
 import { difficultyAdjustedPerception, type NPCArchetypeDefinition } from './NPCDefinitions';
 import { NPCMemory } from './NPCMemory';
 import { NPCNavigation } from './NPCNavigation';
-import { NPCPerception } from './NPCPerception';
+import { NPCPerception, type VisibilityBlocker } from './NPCPerception';
 import { NPCState } from './NPCState';
 import { NPCStateMachine } from './NPCStateMachine';
 import { NPCWeaponAdapter } from './NPCWeaponAdapter';
 import { getWeaponDefinition } from '../weapons/WeaponDefinitions';
+import type { TacticalEquipmentService } from '../tactical/TacticalEquipmentService';
 
 export interface NPCDebugSnapshot {
   id: string;
@@ -70,6 +71,8 @@ export class NPCController implements Damageable {
   private combatTarget: Damageable | null;
   private respawnEnabled = true;
   private objectiveDestination: THREE.Vector3 | null = null;
+  private readonly tacticalEquipment: TacticalEquipmentService | null;
+  private nextTacticalAt = 4;
 
   public constructor(
     id: string,
@@ -85,9 +88,12 @@ export class NPCController implements Damageable {
     eventBus: CombatEventBus,
     patrolPoints: readonly THREE.Vector3[] = [],
     teamId = 'enemy',
+    visibilityBlocker: VisibilityBlocker | null = null,
+    tacticalEquipment: TacticalEquipmentService | null = null,
   ) {
     this.entityId = id;
     this.teamId = teamId;
+    this.tacticalEquipment = tacticalEquipment;
     this.definition = definition;
     this.difficulty = getDifficulty(difficulty);
     this.maxHealth = definition.health;
@@ -112,7 +118,7 @@ export class NPCController implements Damageable {
       groundSnapDistance: 0.15,
       stepHeight: 0.2,
     });
-    this.perception = new NPCPerception(collisionWorld, difficultyAdjustedPerception(definition, this.difficulty));
+    this.perception = new NPCPerception(collisionWorld, difficultyAdjustedPerception(definition, this.difficulty), visibilityBlocker);
     this.navigation = new NPCNavigation(navigationGraph);
     this.cover = cover;
     this.weapon = new NPCWeaponAdapter(
@@ -196,6 +202,7 @@ export class NPCController implements Damageable {
   }
 
   public selectCombatTarget(candidates: readonly Damageable[]): void {
+    if (this.tacticalEquipment?.isDisoriented(this.entityId)) { this.setCombatTarget(null); return; }
     const visible = candidates.filter((target) => this.perception.canSee(this.position, this.root.rotation.y, target.root.position.clone().add(new THREE.Vector3(0, 1, 0))))
       .sort((a, b) => a.root.position.distanceToSquared(this.position) - b.root.position.distanceToSquared(this.position) || a.entityId.localeCompare(b.entityId));
     this.setCombatTarget(visible[0] ?? (this.combatTarget && candidates.includes(this.combatTarget) ? this.combatTarget : null));
@@ -241,7 +248,7 @@ export class NPCController implements Damageable {
       ? this.combatTarget.root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0))
       : playerPosition.clone().add(new THREE.Vector3(0, 1, 0));
     const wasVisible = this.memory.snapshot.targetVisible;
-    const observation = this.combatTarget && !this.combatTarget.isDefeated ? this.perception.observe(
+    const observation = this.combatTarget && !this.combatTarget.isDefeated && !this.tacticalEquipment?.isDisoriented(this.entityId) ? this.perception.observe(
       this.position,
       this.root.rotation.y,
       playerSnapshot,
@@ -249,6 +256,7 @@ export class NPCController implements Damageable {
       this.currentTime,
       this.difficulty.memoryDuration,
     ) : { visible: false, distance: Infinity, targetPosition: this.position.clone() };
+    if (this.tacticalEquipment?.isDisoriented(this.entityId)) this.memory.loseVisual(this.currentTime, 0);
     if (observation.visible && !wasVisible) this.targetAcquiredAt = this.currentTime;
     this.weapon.update(delta);
     if (this.currentTime >= this.nextDecisionAt) {
@@ -274,6 +282,7 @@ export class NPCController implements Damageable {
     this.stuckTime = 0;
     this.nextDecisionAt = 0;
     this.nextFireAt = 0;
+    this.nextTacticalAt = 4;
     this.targetAcquiredAt = -Infinity;
     this.memory.clear();
     this.navigation.clear();
@@ -318,6 +327,13 @@ export class NPCController implements Damageable {
     }
     const memory = this.memory.snapshot;
     if (observation.visible) {
+      if (this.tacticalEquipment && this.currentTime >= this.nextTacticalAt && this.currentTime - this.targetAcquiredAt >= this.difficulty.reactionDelay) {
+        this.nextTacticalAt = this.currentTime + 2;
+        if (this.tacticalEquipment.useNpc(this.entityId, this.getAimOrigin(), observation.targetPosition)) {
+          this.nextTacticalAt = this.currentTime + 12;
+          this.nextFireAt = this.currentTime + 0.6;
+        }
+      }
       this.targetPosition.copy(observation.targetPosition);
       const coverBias = this.definition.coverPreference * this.difficulty.coverPreferenceMultiplier;
       const aggressionBias = this.definition.aggression * this.difficulty.aggressionMultiplier;

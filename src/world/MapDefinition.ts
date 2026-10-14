@@ -27,10 +27,39 @@ export interface MapSpawnPoint {
 
 export interface MapPickupDefinition {
   id: string;
-  type: 'ammo';
+  type: 'ammo' | 'health' | 'equipment';
   position: MapVector3;
   amount: number;
   respawnSeconds: number;
+  equipmentId?: string;
+}
+
+export interface MapInteractionDefinition {
+  id: string;
+  type: 'switch';
+  label: string;
+  position: MapVector3;
+  radius: number;
+  color: number;
+  doorId?: string;
+}
+
+export interface MapDoorDefinition {
+  id: string;
+  label: string;
+  hinge: MapVector3;
+  width: number;
+  height: number;
+  color: number;
+}
+
+export interface MapDestructibleDefinition {
+  id: string;
+  position: MapVector3;
+  size: MapVector3;
+  maxHealth: number;
+  materialColor: number;
+  damageMultiplier?: number;
 }
 
 export interface MapTrainingTargetDefinition {
@@ -69,6 +98,9 @@ export interface MapDefinition {
   dimensions: readonly [number, number];
   lighting: MapLightingDefinition;
   controlPoints: readonly MapControlPointDefinition[];
+  interactions?: readonly MapInteractionDefinition[];
+  destructibles?: readonly MapDestructibleDefinition[];
+  doors?: readonly MapDoorDefinition[];
   build: () => MapBuildOutput;
 }
 

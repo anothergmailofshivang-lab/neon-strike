@@ -20,7 +20,7 @@ export class MatchSession {
   private outcome: MatchOutcome | null = null;
   private winner: TeamId | null = null;
   private reason: string | null = null;
-  public constructor(settings: MatchSettings, sessionId = `match-${Date.now()}-${++sessionSequence}`) {
+  public constructor(settings: MatchSettings, sessionId = `match-${Date.now()}-${++sessionSequence}`, public readonly externallyDirected = false) {
     this.settings = Object.freeze(validateMatchSettings(settings, [settings.mapId]));
     this.sessionId = sessionId;
   }
@@ -45,7 +45,7 @@ export class MatchSession {
     }
     if (this.phase !== 'active') return;
     this.elapsed += delta;
-    if (this.settings.durationSeconds > 0 && this.elapsed >= this.settings.durationSeconds) {
+    if (!this.externallyDirected && this.settings.durationSeconds > 0 && this.elapsed >= this.settings.durationSeconds) {
       this.elapsed = this.settings.durationSeconds;
       this.resolveStandings('Time expired');
     }
@@ -70,16 +70,21 @@ export class MatchSession {
     const a = this.participants.get(source), b = this.participants.get(target);
     return Boolean(a && b && a.id !== b.id && a.teamId !== b.teamId);
   }
-  public recordShot(sourceId: string, count = 1): void {
+  public recordShot(sourceId: string, count = 1, _weaponId?: string): void {
     if (this.phase !== 'active') return;
     const p = this.participants.get(sourceId);
     if (p?.alive && Number.isFinite(count)) p.stats.shotsFired += Math.max(count, 0);
   }
-  public recordDamage(sourceId: string, targetId: string, amount: number): void {
+  public recordDamage(sourceId: string, targetId: string, amount: number, critical = false, _weaponId?: string, countsAsShot = true): void {
     if (this.phase !== 'active' || !Number.isFinite(amount) || amount <= 0) return;
     const source = this.participants.get(sourceId), target = this.participants.get(targetId);
-    if (target) target.stats.damageReceived += amount;
-    if (source) { source.stats.damageDealt += amount; source.stats.shotsHit += 1; }
+    if (!target?.alive || (source && source.id !== target.id && source.teamId === target.teamId)) return;
+    target.stats.damageReceived += amount;
+    if (source && source.id !== target.id) {
+      source.stats.damageDealt += amount;
+      if (countsAsShot) source.stats.shotsHit += 1;
+      if (critical) source.stats.criticalHits += 1;
+    }
   }
   public recordElimination(sourceId: string | null, targetId: string, lifeToken?: number): boolean {
     const target = this.participants.get(targetId);
@@ -91,7 +96,7 @@ export class MatchSession {
     if (credited && source) { source.stats.eliminations++; source.stats.totalScore++; }
     this.emit({ type: 'participant-eliminated', sourceId: credited ? sourceId : null, targetId, teamId: target.teamId, credited });
     if (credited && source && ['free-for-all', 'team-deathmatch'].includes(this.modeId)) this.addTeamScore(source.teamId, 1, 'elimination');
-    if (this.modeId === 'survival') {
+    if (this.modeId === 'survival' && !this.externallyDirected) {
       if (target.kind === 'player') this.resolve('Player eliminated', null, 'defeat');
       else if (this.getParticipants().filter((p) => p.kind === 'npc').every((p) => !p.alive)) {
         this.emit({ type: 'round-ended', round: this.round, outcome: 'victory' });
@@ -120,7 +125,7 @@ export class MatchSession {
     if (this.phase !== 'active' || !this.isCompetitive || !Number.isFinite(amount) || amount <= 0) return false;
     this.scores.set(teamId, (this.scores.get(teamId) ?? 0) + amount);
     this.emit({ type: 'score-changed', teamId, amount, reason });
-    if (this.settings.scoreLimit > 0 && this.scores.get(teamId)! >= this.settings.scoreLimit) this.resolve('Score limit reached', teamId);
+    if (!this.externallyDirected && this.settings.scoreLimit > 0 && this.scores.get(teamId)! >= this.settings.scoreLimit) this.resolve('Score limit reached', teamId);
     return true;
   }
   /** Objective ticks are simultaneous: ties on the winning tick produce a draw. */
@@ -134,18 +139,33 @@ export class MatchSession {
         if (participant) { participant.stats.objectiveScore += amount; participant.stats.totalScore += amount; }
       }
     }
-    if (this.settings.scoreLimit > 0 && [...this.scores.values()].some((s) => s >= this.settings.scoreLimit)) this.resolveStandings('Control score limit reached');
+    if (!this.externallyDirected && this.settings.scoreLimit > 0 && [...this.scores.values()].some((s) => s >= this.settings.scoreLimit)) this.resolveStandings('Control score limit reached');
   }
   public addObjective(value: MatchObjectiveState): void {
     if (this.objectives.has(value.id)) throw new Error(`Duplicate objective: ${value.id}`);
     this.objectives.set(value.id, { ...value });
   }
+  public restorePlayerStatistics(snapshot: MatchSnapshot): void {
+    if (!this.externallyDirected || this.phase !== 'preparing') throw new Error('Statistics restore requires a preparing mission');
+    const player = this.participants.get('player'), previous = snapshot.participants.find((p) => p.id === 'player');
+    if (player && previous) player.stats = { ...previous.stats };
+    this.elapsed = snapshot.elapsedSeconds;
+  }
   public updateObjective(value: MatchObjectiveState, notify = false, capturers: readonly string[] = []): void {
     if (this.phase !== 'active') return;
+    const previous = this.objectives.get(value.id);
     this.objectives.set(value.id, { ...value });
     for (const id of capturers) {
       const p = this.participants.get(id);
       if (p?.alive) { p.stats.objectiveScore++; p.stats.totalScore++; }
+    }
+    if (previous?.owner !== value.owner && value.owner !== null) {
+      const contributors = capturers.filter((id) => this.participants.get(id)?.teamId === value.owner);
+      for (const id of contributors) {
+        const participant = this.participants.get(id);
+        if (participant) participant.stats.objectiveCaptures++;
+      }
+      this.emit({ type: 'objective-captured', objectiveId: value.id, teamId: value.owner, contributorIds: contributors });
     }
     if (notify) this.emit({ type: 'objective-changed', objective: { ...value } });
   }

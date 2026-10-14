@@ -1,3 +1,5 @@
+import type { SprintMode } from '../settings/SettingsService';
+
 export type PlayerPosition = readonly [number, number, number];
 
 export interface PlayerMovementConfig {
@@ -49,6 +51,8 @@ export interface PlayerConfig {
 export interface PlayerSettings {
   mouseSensitivity: number;
   fieldOfView: number;
+  invertY: boolean;
+  sprintMode: SprintMode;
   headBobEnabled: boolean;
   cameraEffectsEnabled: boolean;
 }
@@ -174,6 +178,8 @@ export function defaultPlayerSettings(config: PlayerConfig): PlayerSettings {
   return {
     mouseSensitivity: config.look.mouseSensitivity,
     fieldOfView: config.look.defaultFieldOfView,
+    invertY: false,
+    sprintMode: 'hold',
     headBobEnabled: config.camera.headBobEnabled,
     cameraEffectsEnabled: config.camera.cameraEffectsEnabled,
   };
@@ -206,6 +212,8 @@ export class PlayerSettingsStore {
       return {
         mouseSensitivity: clampNumber(candidate.mouseSensitivity, config.look.mouseSensitivity * 0.25, config.look.mouseSensitivity * 4, defaults.mouseSensitivity),
         fieldOfView: clampNumber(candidate.fieldOfView, config.look.minimumFieldOfView, config.look.maximumFieldOfView, defaults.fieldOfView),
+        invertY: typeof candidate.invertY === 'boolean' ? candidate.invertY : defaults.invertY,
+        sprintMode: candidate.sprintMode === 'toggle' ? 'toggle' : defaults.sprintMode,
         headBobEnabled: typeof candidate.headBobEnabled === 'boolean' ? candidate.headBobEnabled : defaults.headBobEnabled,
         cameraEffectsEnabled: typeof candidate.cameraEffectsEnabled === 'boolean' ? candidate.cameraEffectsEnabled : defaults.cameraEffectsEnabled,
       };

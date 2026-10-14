@@ -42,6 +42,7 @@ export class CollisionWorld {
   private readonly world: RAPIER.World;
   private readonly rapier: typeof RAPIER;
   private readonly staticBodies: RAPIER.RigidBody[] = [];
+  private readonly dynamicBoxes = new Map<string, RAPIER.RigidBody>();
   private readonly actors = new Map<string, {
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
@@ -211,11 +212,59 @@ export class CollisionWorld {
     origin: RAPIER.Vector,
     direction: RAPIER.Vector,
     maximumDistance: number,
+    excludeBoxId?: string,
   ): WorldRaycastResult | null {
     if (this.disposed || !Number.isFinite(maximumDistance) || maximumDistance <= 0) {
       return null;
     }
-    return this.castRay(origin, direction, maximumDistance, undefined, undefined, (collider) => collider.parent()?.isFixed() ?? true);
+    const excluded = excludeBoxId ? this.dynamicBoxes.get(excludeBoxId) : undefined;
+    return this.castRay(origin, direction, maximumDistance, undefined, undefined, (collider) => (collider.parent()?.isFixed() ?? true) && collider.parent()?.handle !== excluded?.handle);
+  }
+
+  /** Swept grenade sphere against the same fixed geometry used by bullets and movement. */
+  public sweepSphere(origin: RAPIER.Vector, direction: RAPIER.Vector, distance: number, radius = 0.13): WorldRaycastResult | null {
+    if (this.disposed || !Number.isFinite(distance) || distance <= 0) return null;
+    this.world.updateSceneQueries();
+    const hit = this.world.castShape(origin, { x: 0, y: 0, z: 0, w: 1 }, direction, new this.rapier.Ball(radius), distance, true,
+      undefined, undefined, undefined, undefined, (collider) => collider.parent()?.isFixed() ?? true);
+    return hit ? { distance: hit.toi, point: { x: origin.x + direction.x * hit.toi, y: origin.y + direction.y * hit.toi, z: origin.z + direction.z * hit.toi }, normal: hit.normal1 } : null;
+  }
+
+  public isSphereClear(position: RAPIER.Vector, radius = 0.13): boolean {
+    this.world.updateSceneQueries();
+    return !this.world.intersectionWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new this.rapier.Ball(radius), undefined, undefined, undefined, undefined, (collider) => collider.parent()?.isFixed() ?? true);
+  }
+
+  public updateBoxCollider(id: string, position: RAPIER.Vector, yaw: number): void {
+    const body = this.dynamicBoxes.get(id);
+    if (!body || this.disposed) return;
+    body.setTranslation(position, true);
+    body.setRotation(quaternionFromEuler(0, yaw, 0), true);
+    this.world.propagateModifiedBodyPositionsToColliders();
+    this.world.updateSceneQueries();
+  }
+
+  public createBoxCollider(id: string, size: readonly [number, number, number], position: readonly [number, number, number], rotation?: readonly [number, number, number]): boolean {
+    if (this.disposed || this.dynamicBoxes.has(id) || !size.every((value) => Number.isFinite(value) && value > 0) || !position.every(Number.isFinite)) return false;
+    const description = this.rapier.RigidBodyDesc.fixed().setTranslation(...position);
+    if (rotation) description.setRotation(quaternionFromEuler(rotation[0], rotation[1], rotation[2]));
+    const body = this.world.createRigidBody(description);
+    this.world.createCollider(this.rapier.ColliderDesc.cuboid(size[0] / 2, size[1] / 2, size[2] / 2).setFriction(0).setRestitution(0), body);
+    this.dynamicBoxes.set(id, body);
+    this.world.updateSceneQueries();
+    return true;
+  }
+
+  public removeBoxCollider(id: string): void {
+    const body = this.dynamicBoxes.get(id);
+    if (!body || this.disposed) return;
+    this.world.removeRigidBody(body);
+    this.dynamicBoxes.delete(id);
+    this.world.updateSceneQueries();
+  }
+
+  public clearBoxColliders(): void {
+    for (const id of [...this.dynamicBoxes.keys()]) this.removeBoxCollider(id);
   }
 
   private castRay(
@@ -271,6 +320,7 @@ export class CollisionWorld {
     for (const actorId of this.actors.keys()) {
       this.removeActor(actorId);
     }
+    this.clearBoxColliders();
     this.disposed = true;
     this.staticBodies.length = 0;
     this.world.free();

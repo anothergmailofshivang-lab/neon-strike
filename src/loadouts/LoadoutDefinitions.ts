@@ -5,4 +5,6 @@ export const DEFAULT_PLAYER_LOADOUT: PlayerLoadout = {
   secondaryWeaponId: 'pistol',
   primarySkinId: 'standard',
   secondarySkinId: 'standard',
+  tacticalEquipmentId: 'frag-grenade',
+  utilityEquipmentId: 'med-kit',
 };

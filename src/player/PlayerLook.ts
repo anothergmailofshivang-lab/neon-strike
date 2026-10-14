@@ -9,6 +9,7 @@ export class PlayerLook {
   private readonly config: PlayerLookConfig;
   private yaw = 0;
   private pitch = 0;
+  private invertY = false;
 
   public constructor(
     input: InputManager,
@@ -30,7 +31,7 @@ export class PlayerLook {
     }
 
     this.yaw -= delta.x * this.config.mouseSensitivity;
-    this.pitch -= delta.y * this.config.mouseSensitivity * this.config.verticalSensitivityMultiplier;
+    this.pitch += (this.invertY ? 1 : -1) * delta.y * this.config.mouseSensitivity * this.config.verticalSensitivityMultiplier;
     this.pitch = Math.min(Math.max(this.pitch, this.config.minimumPitch), this.config.maximumPitch);
     this.applyRotation();
   }
@@ -45,6 +46,10 @@ export class PlayerLook {
     if (Number.isFinite(sensitivity) && sensitivity > 0) {
       this.config.mouseSensitivity = sensitivity;
     }
+  }
+
+  public setInvertY(invertY: boolean): void {
+    this.invertY = invertY;
   }
 
   public getYaw(): number {

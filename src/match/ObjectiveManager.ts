@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { MapInstance } from '../world/MapInstance';
 import type { MatchObjectiveState, TeamId } from './MatchTypes';
 import { MatchSession } from './MatchSession';
+import type { MapControlPointDefinition } from '../world/MapDefinition';
 
 export interface ObjectiveParticipantPosition {
   id: string;
@@ -18,6 +19,7 @@ export interface ObjectiveMinimapState {
   capturingTeam: TeamId | null;
   contested: boolean;
   progress: number;
+  markerKind?: 'mandatory' | 'optional' | 'extraction';
 }
 
 export class ObjectiveManager {
@@ -31,6 +33,7 @@ export class ObjectiveManager {
   private readonly radii = new Map<string, number>();
   private captureDuration = 5;
   private disposed = false;
+  private enabledIds: ReadonlySet<string> | null = null;
 
   public constructor(session: MatchSession) {
     this.session = session;
@@ -38,15 +41,18 @@ export class ObjectiveManager {
   }
 
   public setMap(map: MapInstance | null): void {
+    this.setDefinitions(map && this.session.modeId === 'domination' ? map.controlPoints : []);
+  }
+
+  public setDefinitions(definitions: readonly MapControlPointDefinition[], playerOwnedIds: ReadonlySet<string> = new Set()): void {
     this.clear();
-    if (!map || this.session.modeId !== 'domination') return;
-    for (const definition of map.controlPoints) {
+    for (const definition of definitions) {
       const state: MatchObjectiveState = {
         id: definition.id,
         displayName: definition.displayName,
-        owner: null,
+        owner: playerOwnedIds.has(definition.id) ? 'player' : null,
         capturingTeam: null,
-        progress: 0,
+        progress: playerOwnedIds.has(definition.id) ? 1 : 0,
         contested: false,
         scoreAccumulator: 0,
       };
@@ -63,6 +69,7 @@ export class ObjectiveManager {
       this.group.add(ring);
       this.rings.set(definition.id, ring);
       this.materials.set(definition.id, material);
+      if (typeof document === 'undefined') continue;
       const labelCanvas = document.createElement('canvas');
       labelCanvas.width = 64;
       labelCanvas.height = 64;
@@ -79,22 +86,28 @@ export class ObjectiveManager {
         labelContext.textBaseline = 'middle';
         labelContext.fillText(definition.displayName.slice(0, 1), 32, 34);
       }
-      const labelMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(labelCanvas), transparent: true, depthTest: false });
+      const labelMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(labelCanvas), transparent: true, depthTest: this.session.externallyDirected });
       const label = new THREE.Sprite(labelMaterial);
       label.name = `ObjectiveLabel:${definition.id}`;
+      label.userData.objectiveId = definition.id;
       label.position.set(definition.position[0], definition.position[1] + 2.1, definition.position[2]);
       label.scale.set(0.8, 0.8, 0.8);
       this.group.add(label);
       this.labelMaterials.set(definition.id, labelMaterial);
     }
   }
+  public setEnabledPoints(ids: ReadonlySet<string>): void {
+    this.enabledIds = ids;
+    for (const child of this.group.children) child.visible = ids.has(child.userData.objectiveId as string);
+  }
 
   public update(deltaSeconds: number, participants: readonly ObjectiveParticipantPosition[]): void {
-    if (this.disposed || this.session.phase !== 'active' || this.session.modeId !== 'domination') return;
+    if (this.disposed || this.session.phase !== 'active' || (this.session.modeId !== 'domination' && !this.session.externallyDirected)) return;
     const delta = Math.min(Math.max(deltaSeconds, 0), 0.25);
     const awards = new Map<TeamId, number>();
     const contributors = new Map<TeamId, string[]>();
     for (const state of this.states.values()) {
+      if (this.enabledIds && !this.enabledIds.has(state.id)) continue;
       const point = this.positions.get(state.id);
       if (!point) continue;
       const present = participants.filter((participant) => participant.alive && participant.position.distanceTo(point) <= this.getRadius(state.id));
@@ -121,7 +134,7 @@ export class ObjectiveManager {
       } else if (state.contested) {
         state.progress = state.owner ? 1 : state.progress;
       }
-      if (state.owner) {
+      if (state.owner && !this.session.externallyDirected) {
         state.scoreAccumulator += delta;
         const scoreTicks = Math.floor(state.scoreAccumulator);
         if (scoreTicks > 0) {
@@ -132,8 +145,11 @@ export class ObjectiveManager {
           contributors.set(state.owner, ids);
         }
       }
-      if (previousOwner !== state.owner || previousContested !== state.contested || previousCapturingTeam !== state.capturingTeam || Math.abs(previousProgress - state.progress) >= 0.05) {
-        this.session.updateObjective({ ...state });
+       if (previousOwner !== state.owner || previousContested !== state.contested || previousCapturingTeam !== state.capturingTeam || Math.abs(previousProgress - state.progress) >= 0.05) {
+         const capturers = previousOwner !== state.owner && state.owner !== null
+           ? present.filter((participant) => participant.teamId === state.owner).map((participant) => participant.id)
+           : [];
+         this.session.updateObjective({ ...state }, true, capturers);
       }
       this.updateMarker(state);
     }
@@ -157,6 +173,7 @@ export class ObjectiveManager {
   }
 
   public clear(): void {
+    this.enabledIds = null;
     for (const ring of this.rings.values()) {
       ring.geometry.dispose();
       ring.removeFromParent();

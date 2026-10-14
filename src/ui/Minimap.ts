@@ -95,8 +95,10 @@ export class Minimap {
     }
     context.strokeStyle = 'rgba(100, 234, 255, 0.28)';
     context.lineWidth = 1.5;
+    // The dense validated mission graph is for AI routing, not a wall of minimap lines.
+    const displayedNodes = this.map.navigationGraph.getAllNodes().filter((node) => !node.tags.includes('mission-ground') && !node.tags.includes('mission-point'));
     const drawnEdges = new Set<string>();
-    for (const node of this.map.navigationGraph.getAllNodes()) {
+    for (const node of displayedNodes) {
       for (const edge of this.map.navigationGraph.getNeighbors(node.id)) {
         const key = [edge.from, edge.to].sort().join('|');
         if (drawnEdges.has(key)) continue;
@@ -116,7 +118,7 @@ export class Minimap {
       const [x, y] = toCanvas(objective.position);
       context.fillStyle = objective.contested
         ? '#ffca67'
-        : objective.owner === 'player' ? '#63eaff'
+        : objective.markerKind === 'extraction' ? '#73ffb0' : objective.markerKind === 'optional' ? '#ffc26a' : objective.owner === 'player' ? '#63eaff'
           : objective.owner === 'enemy' ? '#ff766d' : '#9eeaf4';
       context.strokeStyle = '#06121d';
       context.lineWidth = 1;
@@ -136,7 +138,7 @@ export class Minimap {
         context.stroke();
       }
     }
-    for (const node of this.map.navigationGraph.getAllNodes()) {
+    for (const node of displayedNodes) {
       const [x, y] = toCanvas(node.position);
       const isCover = node.tags.includes('cover') || node.tags.includes('interior');
       context.fillStyle = isCover ? 'rgba(255, 183, 92, 0.8)' : 'rgba(172, 238, 245, 0.64)';

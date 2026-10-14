@@ -59,7 +59,13 @@ export function buildJungleForest(): MapBuildOutput {
   return createOutput(factory, graph, cover,
     [spawn('forest-player-clearing', [0, 0, 22], Math.PI, ['player', 'clearing'])],
     [spawn('forest-scout-west', [-17, 0, 16], 0, ['npc', 'west'], 'scout'), spawn('forest-rifleman-east', [17, 0, 16], 0, ['npc', 'east'], 'rifleman'), spawn('forest-heavy-north', [-4, 0, -21], Math.PI, ['npc', 'north'], 'heavy'), spawn('forest-sniper-ridge', [13, 0, -13], Math.PI, ['npc', 'ridge'], 'sniper')],
-    [{ id: 'forest-ammo-cabin', type: 'ammo', position: [-10, 0.9, -3], amount: 30, respawnSeconds: 8 }, { id: 'forest-ammo-bridge', type: 'ammo', position: [17, 0.9, 3], amount: 30, respawnSeconds: 8 }, { id: 'forest-ammo-outpost', type: 'ammo', position: [12, 0.9, 15], amount: 45, respawnSeconds: 8 }],
+    [
+      { id: 'forest-ammo-cabin', type: 'ammo', position: [-11, 0.9, -4], amount: 30, respawnSeconds: 8 },
+      { id: 'forest-ammo-bridge', type: 'ammo', position: [17, 0.9, 3], amount: 30, respawnSeconds: 8 },
+      { id: 'forest-ammo-outpost', type: 'ammo', position: [12, 0.9, 13], amount: 45, respawnSeconds: 8 },
+      { id: 'forest-health-cabin', type: 'health', position: [-10, 0.9, 4], amount: 28, respawnSeconds: 12 },
+      { id: 'forest-tactical-cache', type: 'equipment', equipmentId: 'frag-grenade', position: [2, 0.9, 12], amount: 1, respawnSeconds: 16 },
+    ],
     [{ id: 'forest-target-clearing', position: [0, 0, 4], maxHealth: 100, respawnDelay: 3, accentColor: 0x6ce58a }, { id: 'forest-target-cabin', position: [-10, 0, -3], maxHealth: 120, respawnDelay: 4, accentColor: 0xffc15b }, { id: 'forest-target-ridge', position: [19, 0, -7], maxHealth: 100, respawnDelay: 3, accentColor: 0x9fe87c }],
   );
 }

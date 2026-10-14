@@ -24,12 +24,14 @@ describe('character and loadout persistence', () => {
     const preferences = {
       characterId: character.id,
       appearance: { characterId: character.id, ...character.defaultAppearance },
-      loadout: { primaryWeaponId: 'energy-rifle', secondaryWeaponId: 'pistol', primarySkinId: 'neon-circuit', secondarySkinId: 'arctic' },
+       loadout: { primaryWeaponId: 'energy-rifle', secondaryWeaponId: 'pistol', primarySkinId: 'neon-circuit', secondarySkinId: 'arctic', tacticalEquipmentId: 'smoke-grenade', utilityEquipmentId: 'ammo-pack' },
     };
     expect(save.save(preferences)).toBe(true);
     const restored = save.load();
     expect(restored.characterId).toBe('circuit');
     expect(restored.loadout.primaryWeaponId).toBe('energy-rifle');
+    expect(restored.loadout.tacticalEquipmentId).toBe('smoke-grenade');
+    expect(restored.loadout.utilityEquipmentId).toBe('ammo-pack');
     expect(restored.appearance.paletteId).toBe('sensor-cyan');
   });
 

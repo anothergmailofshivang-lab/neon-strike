@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { InputManager } from '../engine/InputManager';
 import type { PlayerConfig } from './PlayerConfig';
+import type { SprintMode } from '../settings/SettingsService';
 import { calculatePlanarWishDirection, clampHorizontalSpeed, moveTowardsVector } from './PlayerMath';
 import { PlayerMovementState } from './PlayerState';
 
@@ -26,6 +27,8 @@ export class PlayerMotor {
   private coyoteRemaining = 0;
   private collisionCount = 0;
   private active = false;
+  private sprintMode: SprintMode = 'hold';
+  private sprintToggled = false;
 
   public constructor(collisionWorld: CollisionWorld, config: PlayerConfig) {
     this.collisionWorld = collisionWorld;
@@ -50,7 +53,13 @@ export class PlayerMotor {
       this.jumpBufferRemaining = 0;
       this.coyoteRemaining = 0;
       this.movementState = PlayerMovementState.DISABLED;
+      this.sprintToggled = false;
     }
+  }
+
+  public setSprintMode(mode: SprintMode): void {
+    this.sprintMode = mode;
+    if (mode === 'hold') this.sprintToggled = false;
   }
 
   public update(deltaSeconds: number, yaw: number, input: InputManager): PlayerMotorUpdateResult {
@@ -62,16 +71,18 @@ export class PlayerMotor {
     const safeDelta = Number.isFinite(deltaSeconds) && deltaSeconds > 0
       ? Math.min(deltaSeconds, 0.1)
       : 0;
-    const strafeInput = (input.isHeld('KeyD') ? 1 : 0) - (input.isHeld('KeyA') ? 1 : 0);
-    const forwardInput = (input.isHeld('KeyW') ? 1 : 0) - (input.isHeld('KeyS') ? 1 : 0);
+    const strafeInput = (input.isActionHeld('moveRight') ? 1 : 0) - (input.isActionHeld('moveLeft') ? 1 : 0);
+    const forwardInput = (input.isActionHeld('moveForward') ? 1 : 0) - (input.isActionHeld('moveBackward') ? 1 : 0);
     calculatePlanarWishDirection(strafeInput, forwardInput, yaw, this.desiredDirection);
     const hasMovementInput = this.desiredDirection.lengthSq() > 0;
-    const sprinting = input.isHeld('ShiftLeft') || input.isHeld('ShiftRight');
+    if (forwardInput <= 0) this.sprintToggled = false;
+    if (this.sprintMode === 'toggle' && input.consumeActionPressed('sprint')) this.sprintToggled = !this.sprintToggled;
+    const sprinting = this.sprintMode === 'toggle' ? this.sprintToggled : input.isActionHeld('sprint');
     const targetSpeed = sprinting && forwardInput > 0
       ? this.config.movement.sprintSpeed
       : this.config.movement.walkSpeed;
 
-    if (input.consumePressed('Space')) {
+    if (input.consumeActionPressed('jump')) {
       this.jumpBufferRemaining = this.config.movement.jumpBufferDuration;
     } else {
       this.jumpBufferRemaining = Math.max(this.jumpBufferRemaining - safeDelta, 0);
@@ -158,6 +169,7 @@ export class PlayerMotor {
   }
 
   public reset(position = this.config.spawnPosition): void {
+    this.sprintToggled = false;
     this.collisionWorld.setActorEnabled('player', true);
     this.collisionWorld.resetPlayer(position, this.config.movement.standingHeight);
     this.position.fromArray(position);

@@ -14,6 +14,15 @@ export class WeaponPresentation {
   private recoilOffset = 0;
   private firingFlashRemaining = 0;
   private readonly arms: CharacterVisualAdapter;
+  private motionReduction = false;
+  private reducedFlashes = false;
+  private screenShake = true;
+
+  public setComfort(motionReduction: boolean, screenShake: boolean, reducedFlashes: boolean): void {
+    this.motionReduction = motionReduction; this.screenShake = screenShake; this.reducedFlashes = reducedFlashes;
+    if (motionReduction) this.recoilOffset = 0;
+    if (reducedFlashes && this.activeModel) this.activeModel.flash.visible = false;
+  }
 
   public constructor(camera: THREE.PerspectiveCamera, definitions: readonly WeaponDefinition[]) {
     this.camera = camera;
@@ -63,9 +72,9 @@ export class WeaponPresentation {
 
   public fire(definition: WeaponDefinition): void {
     this.firingFlashRemaining = 0.045;
-    this.recoilOffset = Math.min(this.recoilOffset + definition.recoil.vertical * 0.35, 0.12);
+    this.recoilOffset = this.motionReduction || !this.screenShake ? 0 : Math.min(this.recoilOffset + definition.recoil.vertical * 0.35, 0.12);
     if (this.activeModel) {
-      this.activeModel.flash.visible = true;
+      this.activeModel.flash.visible = !this.reducedFlashes;
       this.activeModel.flash.scale.setScalar(1 + Math.random() * 0.55);
     }
   }
@@ -80,7 +89,7 @@ export class WeaponPresentation {
     if (this.activeModel) {
       const muzzle = this.activeModel.muzzle as THREE.Object3D & { userData: { flash?: number } };
       muzzle.userData.flash = this.firingFlashRemaining;
-      this.activeModel.flash.visible = this.firingFlashRemaining > 0;
+      this.activeModel.flash.visible = this.firingFlashRemaining > 0 && !this.reducedFlashes;
     }
   }
 

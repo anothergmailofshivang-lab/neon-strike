@@ -17,6 +17,8 @@ export class CombatEffects {
   private readonly tracerMaterials = new Map<number, THREE.LineBasicMaterial>();
   private readonly impactMaterials = new Map<number, THREE.MeshBasicMaterial>();
   private readonly impactGeometry = new THREE.SphereGeometry(0.045, 6, 4);
+  private quality: 'low' | 'high' = 'high';
+  private effectSequence = 0;
 
   public constructor(scene: THREE.Scene) {
     this.group.name = 'CombatEffects';
@@ -24,6 +26,7 @@ export class CombatEffects {
   }
 
   public spawnTracer(start: THREE.Vector3, end: THREE.Vector3, color: number): void {
+    if (this.quality === 'low' && this.lines.length >= 8) return;
     const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
     const material = this.getTracerMaterial(color);
     const line = new THREE.Line(geometry, material);
@@ -32,6 +35,7 @@ export class CombatEffects {
   }
 
   public spawnImpact(point: THREE.Vector3, color: number, critical = false): void {
+    if (this.quality === 'low' && !critical && this.effectSequence++ % 2 === 0) return;
     const material = this.getImpactMaterial(color);
     const mesh = new THREE.Mesh(this.impactGeometry, material);
     mesh.position.copy(point);
@@ -39,6 +43,8 @@ export class CombatEffects {
     this.group.add(mesh);
     this.impacts.push({ mesh, remaining: critical ? 0.22 : 0.14 });
   }
+
+  public setQuality(quality: 'low' | 'high'): void { this.quality = quality; }
 
   public update(deltaSeconds: number): void {
     this.updateLines(deltaSeconds);

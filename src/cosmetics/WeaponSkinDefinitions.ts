@@ -18,6 +18,9 @@ export const WEAPON_SKIN_DEFINITIONS: readonly WeaponSkinDefinition[] = [
   { id: 'sandstorm', displayName: 'Sandstorm', description: 'Warm ceramic and brass finish for depot operations.', primaryColor: 0x79563b, secondaryColor: 0xe4ae67, energyColor: 0xff7a36, roughness: 0.5, metalness: 0.5 },
   { id: 'arctic', displayName: 'Arctic', description: 'Pale armor plating with a cool blue emitter.', primaryColor: 0xb5d1da, secondaryColor: 0x537b9c, energyColor: 0x8ce9ff, roughness: 0.3, metalness: 0.65 },
   { id: 'dark-carbon', displayName: 'Dark Carbon', description: 'Low-reflective carbon with restrained amber accents.', primaryColor: 0x141a22, secondaryColor: 0x4d5d6c, energyColor: 0xff9f42, roughness: 0.62, metalness: 0.55 },
+  { id: 'signal-flare', displayName: 'Signal Flare', description: 'A high-visibility finish reserved for proven operatives.', primaryColor: 0x3d1820, secondaryColor: 0xff654d, energyColor: 0xffc24f, roughness: 0.34, metalness: 0.72 },
+  { id: 'ion-bloom', displayName: 'Ion Bloom', description: 'A luminous violet finish with a reactive energy edge.', primaryColor: 0x2c1f4c, secondaryColor: 0xc697ff, energyColor: 0xff5be7, roughness: 0.25, metalness: 0.82 },
+  { id: 'mastery-chrome', displayName: 'Mastery Chrome', description: 'A polished armory finish awarded for specialist mastery.', primaryColor: 0x60717b, secondaryColor: 0xe9fcff, energyColor: 0x7dffed, roughness: 0.16, metalness: 0.95 },
 ];
 
 export function validateWeaponSkin(skin: WeaponSkinDefinition): WeaponSkinDefinition {

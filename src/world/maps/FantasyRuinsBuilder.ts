@@ -70,7 +70,13 @@ export function buildFantasyRuins(): MapBuildOutput {
   return createOutput(factory, graph, cover,
     [spawn('fantasy-player-market', [0, 0, 22], Math.PI, ['player', 'market'])],
     [spawn('fantasy-scout-west', [-10, 0, 18], 0, ['npc', 'village'], 'scout'), spawn('fantasy-rifleman-east', [10, 0, 18], 0, ['npc', 'village'], 'rifleman'), spawn('fantasy-heavy-gate', [-8, 0, -20], Math.PI, ['npc', 'gate'], 'heavy'), spawn('fantasy-sniper-bridge', [28, 0, 1], Math.PI, ['npc', 'bridge'], 'sniper')],
-    [{ id: 'fantasy-ammo-village', type: 'ammo', position: [-17, 0.9, 10], amount: 30, respawnSeconds: 8 }, { id: 'fantasy-ammo-ruins', type: 'ammo', position: [-5, 0.9, -2], amount: 30, respawnSeconds: 8 }, { id: 'fantasy-ammo-gate', type: 'ammo', position: [0, 0.9, -20], amount: 45, respawnSeconds: 8 }],
+    [
+      { id: 'fantasy-ammo-village', type: 'ammo', position: [-16, 0.9, 12.2], amount: 30, respawnSeconds: 8 },
+      { id: 'fantasy-ammo-ruins', type: 'ammo', position: [-5, 0.9, 0], amount: 30, respawnSeconds: 8 },
+      { id: 'fantasy-ammo-gate', type: 'ammo', position: [0, 0.9, -20], amount: 45, respawnSeconds: 8 },
+      { id: 'fantasy-health-village', type: 'health', position: [-16, 0.9, 11], amount: 28, respawnSeconds: 12 },
+      { id: 'fantasy-tactical-cache', type: 'equipment', equipmentId: 'frag-grenade', position: [6, 0.9, 12], amount: 1, respawnSeconds: 16 },
+    ],
     [{ id: 'fantasy-target-market', position: [0, 0, 9], maxHealth: 100, respawnDelay: 3, accentColor: 0x69d7c4 }, { id: 'fantasy-target-ruins', position: [-5, 0, -2], maxHealth: 120, respawnDelay: 4, accentColor: 0xffb35b }, { id: 'fantasy-target-gate', position: [0, 0, -20], maxHealth: 100, respawnDelay: 3, accentColor: 0xb5e0a0 }],
   );
 }

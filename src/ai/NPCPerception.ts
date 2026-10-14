@@ -10,6 +10,8 @@ export interface NPCObservation {
   targetPosition: THREE.Vector3;
 }
 
+export type VisibilityBlocker = (origin: THREE.Vector3, target: THREE.Vector3) => boolean;
+
 export class NPCPerception {
   private readonly collisionWorld: CollisionWorld;
   private readonly profile: NPCPerceptionProfile;
@@ -17,7 +19,7 @@ export class NPCPerception {
   private readonly forward = new THREE.Vector3();
   private readonly origin = new THREE.Vector3();
 
-  public constructor(collisionWorld: CollisionWorld, profile: NPCPerceptionProfile) {
+  public constructor(collisionWorld: CollisionWorld, profile: NPCPerceptionProfile, private readonly visibilityBlocker: VisibilityBlocker | null = null) {
     this.collisionWorld = collisionWorld;
     this.profile = profile;
   }
@@ -57,6 +59,7 @@ export class NPCPerception {
   }
 
   private hasLineOfSight(origin: THREE.Vector3, target: THREE.Vector3, distance: number): boolean {
+    if (this.visibilityBlocker?.(origin, target)) return false;
     const direction = target.clone().sub(origin).normalize();
     const obstruction = this.collisionWorld.raycastStaticWorld(
       { x: origin.x, y: origin.y, z: origin.z },

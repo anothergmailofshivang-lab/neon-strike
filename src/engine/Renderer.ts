@@ -10,6 +10,10 @@ export interface RendererStats {
   textures: number | null;
 }
 
+export interface RendererCallbacks {
+  onContextLost?: () => void;
+}
+
 export class Renderer {
   private readonly container: HTMLElement;
   private readonly config: GameConfig;
@@ -17,10 +21,14 @@ export class Renderer {
   private disposed = false;
   private width = 0;
   private height = 0;
+  private renderScale = 1;
+  private readonly callbacks: RendererCallbacks;
+  private readonly contextLostHandler = (event: Event): void => { event.preventDefault(); this.callbacks.onContextLost?.(); };
 
-  public constructor(container: HTMLElement, config: GameConfig) {
+  public constructor(container: HTMLElement, config: GameConfig, callbacks: RendererCallbacks = {}) {
     this.container = container;
     this.config = config;
+    this.callbacks = callbacks;
 
     try {
       this.renderer = new THREE.WebGLRenderer({
@@ -42,6 +50,7 @@ export class Renderer {
     this.renderer.domElement.className = 'game-canvas';
     this.renderer.domElement.setAttribute('aria-label', 'NEON STRIKE 3D practice arena');
     this.container.appendChild(this.renderer.domElement);
+    this.renderer.domElement.addEventListener('webglcontextlost', this.contextLostHandler);
   }
 
   public get canvas(): HTMLCanvasElement {
@@ -55,7 +64,7 @@ export class Renderer {
 
     const safeWidth = Number.isFinite(width) && width > 0 ? Math.floor(width) : 1;
     const safeHeight = Number.isFinite(height) && height > 0 ? Math.floor(height) : 1;
-    if (safeWidth === this.width && safeHeight === this.height) {
+    if (safeWidth === this.width && safeHeight === this.height && this.renderer.getPixelRatio() === this.getPixelRatio()) {
       return false;
     }
 
@@ -74,20 +83,28 @@ export class Renderer {
     }
   }
 
+  public setGraphicsSettings(settings: { renderScale: number }): void {
+    const scale = Number.isFinite(settings.renderScale) ? Math.min(Math.max(settings.renderScale, 0.5), 1) : 1;
+    if (this.renderScale === scale) return;
+    this.renderScale = scale;
+    this.renderer.setPixelRatio(this.getPixelRatio());
+    if (this.width > 0 && this.height > 0) this.renderer.setSize(this.width, this.height, false);
+  }
+
   public renderPreview(scene: THREE.Scene, camera: THREE.PerspectiveCamera, bounds: DOMRect): void {
     if (this.disposed) return;
     const canvas = this.canvas.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) return;
-    const pixelRatio = this.getPixelRatio();
     const left = bounds.left - canvas.left;
     const bottom = canvas.bottom - bounds.bottom;
+    const pixelRatio = this.getPixelRatio();
     this.renderer.setViewport(left * pixelRatio, bottom * pixelRatio, bounds.width * pixelRatio, bounds.height * pixelRatio);
     this.renderer.setScissor(left * pixelRatio, bottom * pixelRatio, bounds.width * pixelRatio, bounds.height * pixelRatio);
     this.renderer.setScissorTest(true);
     this.renderer.clear(true, true, true);
     this.renderer.render(scene, camera);
     this.renderer.setScissorTest(false);
-    this.renderer.setViewport(0, 0, this.width, this.height);
+    this.renderer.setViewport(0, 0, this.width * pixelRatio, this.height * pixelRatio);
   }
 
   public getStats(): RendererStats {
@@ -108,6 +125,7 @@ export class Renderer {
     }
 
     this.disposed = true;
+    this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLostHandler);
     this.renderer.dispose();
     if (removeCanvas && this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement);
@@ -116,6 +134,6 @@ export class Renderer {
 
   private getPixelRatio(): number {
     const devicePixelRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
-    return Math.min(Math.max(devicePixelRatio || 1, 1), this.config.renderer.maxPixelRatio);
+    return Math.min(Math.max(devicePixelRatio || 1, 1), this.config.renderer.maxPixelRatio) * this.renderScale;
   }
 }

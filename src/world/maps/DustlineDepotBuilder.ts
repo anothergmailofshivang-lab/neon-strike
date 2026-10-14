@@ -70,6 +70,8 @@ export function buildDustlineDepot(): MapBuildOutput {
     { id: 'dustline-ammo-west', type: 'ammo', position: [-22, 0.9, 2], amount: 30, respawnSeconds: 8 },
     { id: 'dustline-ammo-east', type: 'ammo', position: [22, 0.9, 4], amount: 30, respawnSeconds: 8 },
     { id: 'dustline-ammo-north', type: 'ammo', position: [0, 0.9, -22], amount: 45, respawnSeconds: 8 },
+    { id: 'dustline-health-loading', type: 'health', position: [0, 0.9, 1], amount: 28, respawnSeconds: 12 },
+    { id: 'dustline-tactical-cache', type: 'equipment', equipmentId: 'frag-grenade', position: [-9, 0.9, 12], amount: 1, respawnSeconds: 16 },
   ], [
     { id: 'dustline-target-west', position: [-23, 0, -18], maxHealth: 100, respawnDelay: 3, accentColor: 0xffb04c },
     { id: 'dustline-target-east', position: [23, 0, -18], maxHealth: 100, respawnDelay: 3, accentColor: 0xd95c3e },

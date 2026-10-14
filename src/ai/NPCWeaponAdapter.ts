@@ -44,6 +44,7 @@ export class NPCWeaponAdapter {
     if (!this.runtime.consumeShot()) {
       return false;
     }
+    this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
     const shotDirection = applyAimError(direction, aimError);
     const worldHit = this.collisionWorld.raycastStaticWorld(
       { x: origin.x, y: origin.y, z: origin.z },
@@ -51,7 +52,6 @@ export class NPCWeaponAdapter {
       this.runtime.definition.range,
     );
     if (!this.target || this.target.isDefeated) {
-      this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
       return true;
     }
     const targetPosition = this.target.root.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0));
@@ -78,10 +78,8 @@ export class NPCWeaponAdapter {
         1,
         this.sourceId,
       );
-      this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
       return result.applied;
     }
-    this.eventBus.emit({ type: 'weapon-fired', weapon: this.runtime.definition, shotCount: 1, sourceId: this.sourceId });
     return true;
   }
 

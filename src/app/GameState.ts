@@ -28,14 +28,17 @@ const LEGAL_TRANSITIONS: Readonly<Record<ApplicationState, ReadonlySet<Applicati
     ApplicationState.PAUSED,
     ApplicationState.MAIN_MENU,
     ApplicationState.MATCH_RESULTS,
+    ApplicationState.ERROR,
   ]),
   [ApplicationState.PAUSED]: new Set([
     ApplicationState.PLAYING,
     ApplicationState.MAIN_MENU,
+    ApplicationState.ERROR,
   ]),
   [ApplicationState.MATCH_RESULTS]: new Set([
     ApplicationState.MAIN_MENU,
     ApplicationState.LOADING_MATCH,
+    ApplicationState.ERROR,
   ]),
   [ApplicationState.ERROR]: new Set(),
 };

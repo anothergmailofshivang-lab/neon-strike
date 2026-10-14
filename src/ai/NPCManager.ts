@@ -6,9 +6,12 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { CombatTargetRegistry } from '../combat/HitDetection';
 import type { MapInstance } from '../world/MapInstance';
 import { getNPCArchetype } from './NPCDefinitions';
+import type { NPCArchetypeDefinition } from './NPCDefinitions';
 import { NPCController, type NPCDebugSnapshot } from './NPCController';
 import type { DifficultyConfig } from './NPCDifficulty';
 import type { GameModeId } from '../match/MatchTypes';
+import type { VisibilityBlocker } from './NPCPerception';
+import type { TacticalEquipmentService } from '../tactical/TacticalEquipmentService';
 
 export interface NPCEncounterSummary {
   total: number;
@@ -46,6 +49,8 @@ export class NPCManager {
     targetRegistry: CombatTargetRegistry,
     eventBus: CombatEventBus,
     difficulty: DifficultyConfig['id'] = 'normal',
+    private readonly visibilityBlocker: VisibilityBlocker | null = null,
+    private readonly tacticalEquipment: TacticalEquipmentService | null = null,
   ) {
     this.scene = scene;
     this.collisionWorld = collisionWorld;
@@ -80,10 +85,13 @@ export class NPCManager {
         this.eventBus,
         patrolPoints,
         teamId,
+        this.visibilityBlocker,
+        this.tacticalEquipment,
       );
       npc.setRespawnEnabled(this.roster.respawnsEnabled);
       npc.setObjectiveDestination(this.objectiveDestinations[index % Math.max(this.objectiveDestinations.length, 1)] ?? null);
       this.npcs.push(npc);
+      this.tacticalEquipment?.registerNpc(npc.entityId, archetype);
       this.damageSystem.register(npc);
       this.targetRegistry.register(npc);
     }
@@ -92,6 +100,23 @@ export class NPCManager {
 
   public configureRoster(roster: NPCMatchRoster): void {
     this.roster = { ...roster, count: Math.max(Math.floor(roster.count), 0) };
+  }
+  /** Staged mission rosters still instantiate the normal AI/combat controller. */
+  public spawnMissionEncounter(map: MapInstance, units: readonly { id: string; archetype: NPCArchetypeDefinition['id']; position: THREE.Vector3; destination: THREE.Vector3 }[]): string[] {
+    if (this.npcs.length + units.length > 8) throw new Error('Mission NPC population limit exceeded');
+    for (const unit of units) {
+      if (this.npcs.some((npc) => npc.entityId === unit.id) || !this.collisionWorld.isCapsuleClear(unit.position)) throw new Error(`Invalid mission NPC spawn: ${unit.id}`);
+    }
+    const created: string[] = [];
+    try {
+      for (const unit of units) {
+        const npc = new NPCController(unit.id, getNPCArchetype(unit.archetype), this.difficulty, unit.position, this.scene, this.collisionWorld, map.navigationGraph, map.coverRegistry, this.playerHealth, this.damageSystem, this.eventBus, [unit.destination], 'enemy', this.visibilityBlocker, this.tacticalEquipment);
+        npc.setRespawnEnabled(false); npc.setObjectiveDestination(unit.destination); npc.setActive(this.enabled);
+        this.spawnPositions[this.npcs.length] = unit.position.clone(); this.npcs.push(npc); created.push(unit.id);
+        this.tacticalEquipment?.registerNpc(unit.id, unit.archetype); this.damageSystem.register(npc); this.targetRegistry.register(npc);
+      }
+      return created;
+    } catch (error) { this.clearMap(); throw error; }
   }
 
   public setDifficulty(difficulty: DifficultyConfig['id']): void {
@@ -196,6 +221,7 @@ export class NPCManager {
       this.targetRegistry.unregister(npc.entityId);
       this.damageSystem.unregister(npc.entityId);
       npc.dispose();
+      this.tacticalEquipment?.unregisterNpc(npc.entityId);
     }
     this.npcs.length = 0;
   }

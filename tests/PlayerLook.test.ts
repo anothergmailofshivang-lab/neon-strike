@@ -63,4 +63,16 @@ describe('PlayerLook', () => {
     expect(look.getYaw()).toBeCloseTo(Math.PI / 2);
     input.dispose();
   });
+
+  it('inverts only vertical look while preserving horizontal sensitivity', () => {
+    const target = new FakeEventTarget();
+    const input = new InputManager(target, target, target, target);
+    const look = new PlayerLook(input, new THREE.Object3D(), new THREE.Object3D(), createPlayerConfig().look);
+    look.setInvertY(true);
+    target.mouse(100, 100);
+    look.update(true);
+    expect(look.getYaw()).toBeCloseTo(-0.22);
+    expect(look.getPitch()).toBeCloseTo(0.22);
+    input.dispose();
+  });
 });

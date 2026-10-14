@@ -66,6 +66,8 @@ export function buildSkybridge(): MapBuildOutput {
     { id: 'skybridge-ammo-lower', type: 'ammo', position: [-8, 0.9, 6], amount: 30, respawnSeconds: 8 },
     { id: 'skybridge-ammo-west', type: 'ammo', position: [-14, 6.2, -9], amount: 30, respawnSeconds: 8 },
     { id: 'skybridge-ammo-east', type: 'ammo', position: [14, 6.2, 9], amount: 45, respawnSeconds: 8 },
+    { id: 'skybridge-health-lower', type: 'health', position: [0, 0.9, 7], amount: 28, respawnSeconds: 12 },
+    { id: 'skybridge-tactical-cache', type: 'equipment', equipmentId: 'frag-grenade', position: [-3, 0.9, 8], amount: 1, respawnSeconds: 16 },
   ], [
     { id: 'skybridge-target-lower', position: [0, 0, -12], maxHealth: 100, respawnDelay: 3, accentColor: 0x54eaff },
     { id: 'skybridge-target-west', position: [-14, 5.6, -9], maxHealth: 120, respawnDelay: 4, accentColor: 0x8fc8ff },

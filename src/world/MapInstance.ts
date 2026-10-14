@@ -15,6 +15,8 @@ export class MapInstance {
   public readonly pickups: readonly MapPickupDefinition[];
   public readonly trainingTargets: readonly MapTrainingTargetDefinition[];
   public readonly controlPoints: readonly MapControlPointDefinition[];
+  public readonly interactions: MapDefinition['interactions'];
+  public readonly destructibles: MapDefinition['destructibles'];
   private readonly releaseResources: () => void;
   private disposed = false;
   private lifecycleState: MapLifecycleState;
@@ -30,6 +32,8 @@ export class MapInstance {
     this.pickups = output.pickups;
     this.trainingTargets = output.trainingTargets;
     this.controlPoints = definition.controlPoints;
+    this.interactions = definition.interactions ?? [];
+    this.destructibles = definition.destructibles ?? [];
     this.releaseResources = output.dispose;
     this.lifecycleState = MapLifecycleState.READY;
   }

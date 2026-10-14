@@ -10,6 +10,4 @@ if (!root) {
 const app = new GameApp(root);
 void app.start();
 
-if (import.meta.env.DEV) {
-  window.addEventListener('pagehide', () => app.dispose(), { once: true });
-}
+window.addEventListener('pagehide', () => app.dispose(), { once: true });

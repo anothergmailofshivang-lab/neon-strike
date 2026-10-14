@@ -14,9 +14,10 @@ class FakeEventTarget implements InputEventTarget {
     this.listeners.get(type)?.delete(listener);
   }
 
-  public dispatch(type: string, code = ''): void {
+  public dispatch(type: string, code = '', repeat = false): void {
     const event = new Event(type);
     Object.defineProperty(event, 'code', { value: code });
+    Object.defineProperty(event, 'repeat', { value: repeat });
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event);
     }
@@ -33,6 +34,20 @@ class FakeEventTarget implements InputEventTarget {
 }
 
 describe('InputManager', () => {
+  it('consumes tactical/utility/interact presses once and rejects auto-repeat after focus loss', () => {
+    const target = new FakeEventTarget();
+    const input = new InputManager(target, target, target);
+    for (const key of ['KeyG', 'KeyH', 'KeyE']) {
+      target.dispatch('keydown', key);
+      expect(input.consumePressed(key)).toBe(true);
+      target.dispatch('keydown', key, true);
+      expect(input.consumePressed(key)).toBe(false);
+      target.dispatch('blur'); target.dispatch('keydown', key, true);
+      expect(input.consumePressed(key)).toBe(false);
+      target.dispatch('keyup', key);
+    }
+    input.dispose();
+  });
   it('tracks held, pressed, and released keyboard state', () => {
     const target = new FakeEventTarget();
     const input = new InputManager(target, target, target);
@@ -75,6 +90,20 @@ describe('InputManager', () => {
     target.dispatchMouse(12, -4);
     expect(input.consumeMouseDelta()).toEqual({ x: 12, y: -4 });
     expect(input.consumeMouseDelta()).toEqual({ x: 0, y: 0 });
+    input.dispose();
+  });
+
+  it('maps logical actions and clears them when disabled', () => {
+    const target = new FakeEventTarget();
+    const input = new InputManager(target, target, target, target);
+    input.setBindings({
+      moveForward: 'KeyI', moveBackward: 'KeyK', moveLeft: 'KeyJ', moveRight: 'KeyL', jump: 'Space', sprint: 'ShiftLeft', reload: 'KeyR', primaryWeapon: 'Digit1', secondaryWeapon: 'Digit2', nextWeapon: 'KeyQ', tactical: 'KeyG', utility: 'KeyH', interact: 'KeyF', pause: 'Escape', scoreboard: 'Tab',
+    });
+    target.dispatch('keydown', 'KeyI');
+    expect(input.isActionHeld('moveForward')).toBe(true);
+    expect(input.consumeActionPressed('moveForward')).toBe(true);
+    input.setEnabled(false);
+    expect(input.isActionHeld('moveForward')).toBe(false);
     input.dispose();
   });
 });

@@ -73,14 +73,44 @@ export class DamageSystem {
       shotDirection: new THREE.Vector3(shotDirection.x, shotDirection.y, shotDirection.z),
       simulationTime: simulationTime + this.sequence++ * Number.EPSILON,
     };
+    return this.resolveDamage(target, request);
+  }
+
+  public applyDirectDamage(
+    target: Damageable,
+    amount: number,
+    sourceId: string,
+    effectId: string,
+    impactPoint: { x: number; y: number; z: number },
+    simulationTime: number,
+  ): DamageResult {
+    const source = this.targets.get(sourceId);
+    if (this.targets.get(target.entityId) !== target || target.isDefeated || !Number.isFinite(amount) || amount <= 0 || this.policy?.(sourceId, target.entityId) === false || (source && source.entityId !== target.entityId && source.teamId && source.teamId === target.teamId)) {
+      return { applied: false, damage: 0, critical: false, defeated: target.isDefeated, targetId: target.entityId, impactPoint: new THREE.Vector3(impactPoint.x, impactPoint.y, impactPoint.z) };
+    }
+    const request: DamageRequest = {
+      sourceId,
+      targetId: target.entityId,
+      weaponId: effectId,
+      baseDamage: amount,
+      finalDamage: amount,
+      distance: 0,
+      range: 0,
+      falloffMultiplier: 1,
+      criticalMultiplier: 1,
+      hitRegion: 'body',
+      impactPoint: new THREE.Vector3(impactPoint.x, impactPoint.y, impactPoint.z),
+      shotDirection: new THREE.Vector3(0, 1, 0),
+      simulationTime: simulationTime + this.sequence++ * Number.EPSILON,
+    };
+    return this.resolveDamage(target, request);
+  }
+
+  private resolveDamage(target: Damageable, request: DamageRequest): DamageResult {
     const result = target.receiveDamage(request);
     this.eventBus.emit({ type: 'damage-applied', request, result });
-    if (result.critical) {
-      this.eventBus.emit({ type: 'critical-hit', request, result });
-    }
-    if (result.applied && result.defeated) {
-      this.eventBus.emit({ type: 'target-defeated', request, result });
-    }
+    if (result.applied && result.critical) this.eventBus.emit({ type: 'critical-hit', request, result });
+    if (result.applied && result.defeated) this.eventBus.emit({ type: 'target-defeated', request, result });
     return result;
   }
 }

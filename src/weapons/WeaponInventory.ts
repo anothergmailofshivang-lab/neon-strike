@@ -76,4 +76,6 @@ export class WeaponInventory {
     }
     return added;
   }
+
+  public canResupply(): boolean { return [...this.runtimes.values()].some((runtime) => runtime.getSnapshot().reserveAmmo < runtime.definition.maximumReserveAmmo); }
 }

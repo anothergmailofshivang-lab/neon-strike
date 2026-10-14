@@ -3,4 +3,6 @@ export interface PlayerLoadout {
   secondaryWeaponId: string;
   primarySkinId: string;
   secondarySkinId: string;
+  tacticalEquipmentId?: string;
+  utilityEquipmentId?: string;
 }

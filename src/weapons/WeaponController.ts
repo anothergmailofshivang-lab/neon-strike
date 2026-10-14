@@ -45,6 +45,7 @@ export class WeaponController {
   private emptyFeedbackCooldown = 0;
   private simulationTime = 0;
   private lastAiming = false;
+  private cameraRecoilEnabled = true;
 
   public constructor(
     scene: THREE.Scene,
@@ -82,6 +83,11 @@ export class WeaponController {
     await this.audio.resume();
   }
 
+  public setAudioVolumes(master: number, effects: number): void { this.audio.setVolumes(master, effects); }
+  public async playTestSound(): Promise<boolean> { return this.audio.playTestSound(); }
+  public setEffectsQuality(quality: 'low' | 'high'): void { this.effects.setQuality(quality); }
+  public setComfort(motionReduction: boolean, screenShake: boolean, reducedFlashes: boolean): void { this.cameraRecoilEnabled = screenShake; this.presentation.setComfort(motionReduction, screenShake, reducedFlashes); }
+
   public update(deltaSeconds: number, pointerLocked: boolean): void {
     if (this.disposed) {
       return;
@@ -92,7 +98,7 @@ export class WeaponController {
     this.presentation.update(delta);
     const recoilRecovery = this.recoil.update(delta, this.inventory.active.definition.recoil);
     if (recoilRecovery.pitch !== 0 || recoilRecovery.yaw !== 0) {
-      this.callbacks.onRecoil(-recoilRecovery.yaw, -recoilRecovery.pitch);
+      if (this.cameraRecoilEnabled) this.callbacks.onRecoil(-recoilRecovery.yaw, -recoilRecovery.pitch);
     }
     this.emptyFeedbackCooldown = Math.max(this.emptyFeedbackCooldown - delta, 0);
     this.spreadAccumulation = Math.max(this.spreadAccumulation - delta * this.inventory.active.definition.spread.recovery, 0);
@@ -113,7 +119,7 @@ export class WeaponController {
       return;
     }
     this.updateAim(this.input.isMouseHeld(2));
-    if (this.input.consumePressed('KeyR')) {
+    if (this.input.consumeActionPressed('reload')) {
       if (runtime.startReload()) {
         this.audio.playReload();
       }
@@ -178,6 +184,9 @@ export class WeaponController {
     return this.inventory.addReserveAmmo(amount);
   }
 
+  public playTacticalCue(cue: string): void { this.audio.playTactical(cue); }
+  public canResupply(): boolean { return this.inventory.canResupply(); }
+
   public collectAmmo(amount: number): number {
     const added = this.inventory.addReserveAmmo(amount);
     if (added > 0) {
@@ -206,11 +215,11 @@ export class WeaponController {
   }
 
   private handleWeaponSelection(): void {
-    if (this.input.consumePressed('Digit1')) {
+    if (this.input.consumeActionPressed('primaryWeapon')) {
       this.beginSwitch(this.inventory.loadout.primaryWeaponId);
-    } else if (this.input.consumePressed('Digit2')) {
+    } else if (this.input.consumeActionPressed('secondaryWeapon')) {
       this.beginSwitch(this.inventory.loadout.secondaryWeaponId);
-    } else if (this.input.consumePressed('KeyQ')) {
+    } else if (this.input.consumeActionPressed('nextWeapon')) {
       this.beginSwitch(this.inventory.allWeaponIds[(this.inventory.allWeaponIds.indexOf(this.inventory.active.definition.id) + 1) % this.inventory.allWeaponIds.length]);
     } else {
       const wheel = this.input.consumeMouseWheelDirection();
@@ -341,7 +350,7 @@ export class WeaponController {
     }
     this.spreadAccumulation = Math.min(this.spreadAccumulation + definition.spread.sustainedPerShot, definition.spread.maximum);
     const recoil = this.recoil.apply(definition.recoil);
-    this.callbacks.onRecoil(recoil.yaw, recoil.pitch);
+    if (this.cameraRecoilEnabled) this.callbacks.onRecoil(recoil.yaw, recoil.pitch);
     this.presentation.fire(definition);
     this.audio.playShot(definition);
     if (firstHit?.kind === 'world') {

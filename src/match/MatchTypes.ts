@@ -24,7 +24,9 @@ export interface MatchParticipantStats {
   damageReceived: number;
   shotsFired: number;
   shotsHit: number;
+  criticalHits: number;
   objectiveScore: number;
+  objectiveCaptures: number;
   totalScore: number;
 }
 
@@ -71,6 +73,7 @@ export type MatchEvent =
   | { type: 'match-started' }
   | { type: 'score-changed'; teamId: TeamId; amount: number; reason: string }
   | { type: 'participant-eliminated'; sourceId: string | null; targetId: string; teamId: TeamId; credited: boolean }
+  | { type: 'objective-captured'; objectiveId: string; teamId: TeamId; contributorIds: readonly string[] }
   | { type: 'objective-changed'; objective: MatchObjectiveState }
   | { type: 'round-started'; round: number }
   | { type: 'round-ended'; round: number; outcome: MatchOutcome }
@@ -86,7 +89,9 @@ export function createParticipantStats(): MatchParticipantStats {
     damageReceived: 0,
     shotsFired: 0,
     shotsHit: 0,
+    criticalHits: 0,
     objectiveScore: 0,
+    objectiveCaptures: 0,
     totalScore: 0,
   };
 }

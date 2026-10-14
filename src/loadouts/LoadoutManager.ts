@@ -28,5 +28,7 @@ export class LoadoutManager {
   public setSecondaryWeapon(id: string): PlayerLoadout { return this.setLoadout({ ...this.value, secondaryWeaponId: id }); }
   public setPrimarySkin(id: string): PlayerLoadout { return this.setLoadout({ ...this.value, primarySkinId: id }); }
   public setSecondarySkin(id: string): PlayerLoadout { return this.setLoadout({ ...this.value, secondarySkinId: id }); }
+  public setTacticalEquipment(id: string): PlayerLoadout { return this.setLoadout({ ...this.value, tacticalEquipmentId: id }); }
+  public setUtilityEquipment(id: string): PlayerLoadout { return this.setLoadout({ ...this.value, utilityEquipmentId: id }); }
   public reset(): PlayerLoadout { this.value = validateLoadout(DEFAULT_PLAYER_LOADOUT, this.catalog, this.skins); return this.loadout; }
 }
